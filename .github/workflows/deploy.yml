@@ -20,10 +20,10 @@ jobs:
         run: |
           sshpass -p "${{ secrets.RPI_PASSWORD }}" ssh -p 35566 -o StrictHostKeyChecking=no ${{ secrets.RPI_USER }}@${{ secrets.RPI_HOST }} << 'EOF'
             # Navigate to the project directory
-            cd /home/pi/your-app-directory || exit
+            cd ~/Desktop/AaronsSpotifyStats/SpotifyStats || exit
 
             # Gracefully stop the currently running app
-            pid=$(pgrep -f your-app) 
+            pid=$(pgrep -f aaronsspotifystats) 
 
             if [ ! -z "$pid" ]; then
               # Kill the process if it's running
@@ -32,7 +32,7 @@ jobs:
               # Wait a few seconds to ensure the process stops
               sleep 5
             else
-              echo "No running process found for your-app."
+              echo "No running process found for aaronsspotifystats."
             fi
 
             # Pull the latest code from GitHub
@@ -42,6 +42,6 @@ jobs:
             cargo build --release || exit
 
             # Start the application again
-            ./target/release/your-app &
+            ./target/release/aaronsspotifystats &
             echo "Application restarted."
           EOF
