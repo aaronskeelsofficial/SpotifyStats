@@ -1,0 +1,47 @@
+name: Deploy Rust Application to Raspberry Pi
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install sshpass
+        run: sudo apt-get install sshpass
+
+      - name: Deploy to Raspberry Pi
+        run: |
+          sshpass -p "${{ secrets.RPI_PASSWORD }}" ssh -p 35566 -o StrictHostKeyChecking=no ${{ secrets.RPI_USER }}@${{ secrets.RPI_HOST }} << 'EOF'
+            # Navigate to the project directory
+            cd /home/pi/your-app-directory || exit
+
+            # Gracefully stop the currently running app
+            pid=$(pgrep -f your-app) 
+
+            if [ ! -z "$pid" ]; then
+              # Kill the process if it's running
+              echo "Stopping process with PID: $pid"
+              kill -SIGTERM $pid
+              # Wait a few seconds to ensure the process stops
+              sleep 5
+            else
+              echo "No running process found for your-app."
+            fi
+
+            # Pull the latest code from GitHub
+            git pull origin master || exit
+
+            # Rebuild the project
+            cargo build --release || exit
+
+            # Start the application again
+            ./target/release/your-app &
+            echo "Application restarted."
+          EOF
