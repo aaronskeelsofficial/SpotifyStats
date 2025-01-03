@@ -9,7 +9,7 @@ fn main() {
     // Spawn a separate thread for the web server
     let webserver_thread = std::thread::spawn(|| {
         // This is the entry point of the Actix server, managed by the `#[actix_web::main]` macro
-        modules::webserver::main().unwrap(); // Unwrap safely if no error expected
+        modules::webserver::main(); // Unwrap safely if no error expected
     });
 
     // Other tasks can run in the main thread here

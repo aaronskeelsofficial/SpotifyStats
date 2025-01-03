@@ -1,49 +1,48 @@
-use actix_web::{get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use std::{collections::HashMap, net::SocketAddr, path::Path};
+use axum::{body, extract::{ConnectInfo, Query, Request}, http::HeaderMap, routing::{get, post}, Json, Router };
 use chrono::Duration;
+use serde_json::Value;
+use tokio::{fs::File, io::AsyncReadExt};
 
-#[get("/")]
-async fn index() -> impl Responder {
+async fn index() -> &'static str {
+    println!("Received request to /");
     "Hello, World!"
 }
 
-#[get("/authorize")]
-async fn authorize() -> impl Responder {
+async fn authorize() -> axum::response::Redirect {
     println!("Received request to /authorize");
     let base_url = "https://accounts.spotify.com/authorize".to_string();
     let client_id = "?client_id=260c8b1e828041f8a6120f9eea11c15c".to_string();
     let response_type = "&response_type=code".to_string();
     let redirect_uri = "&redirect_uri=http://206.13.112.71:35565/authorizesuccess".to_string();
     let scope = "&scope=user-read-recently-played".to_string();
-    let full_url = base_url + &client_id + &response_type + &redirect_uri + &scope;
+    let prompt = "&prompt=login".to_string(); //This forces them to login even if they already authenticated an account.
+    let full_url = base_url + &client_id + &response_type + &redirect_uri + &scope + &prompt;
     println!("Redirection to Spotify");
-    HttpResponse::Found()
-        .append_header(("Location", full_url))
-        .finish()
+    axum::response::Redirect::to(&full_url)
 }
 
-#[derive(serde::Deserialize)]
-struct AuthorizeSuccessQuery {
-    code: String,
-}
-#[get("/authorizesuccess")]
-async fn authorizesuccess(req: HttpRequest, lsq: web::Query<AuthorizeSuccessQuery>) -> impl Responder {
-    println!("Received request to /authorizeuccess");
-    let code = &lsq.0.code;
-    let ip = &req.peer_addr().unwrap().to_string();
+// struct AuthorizeSuccessQuery {
+//     code: String,
+// }
+#[axum::debug_handler]
+async fn authorizesuccess(ConnectInfo(ip): ConnectInfo<SocketAddr>, Query(query): Query<HashMap<String, String>>, headers: HeaderMap) -> axum::response::Redirect {
+    println!("Received request to /authorizesuccess");
+    let code = query.get("code").unwrap();
+    let ip = &ip.to_string();
+    let origin = headers.get("host").unwrap().to_str().unwrap();
     println!("Setting access code");
     crate::modules::database::oath_info::set_access_code(&ip, &code).unwrap();
     println!("Trading code for token");
-    let _token = trade_code_for_token(&req, &ip, &code).await;
+    let _token = trade_code_for_token(origin, &ip, &code).await;
     println!("Received code and token");
-    HttpResponse::Found()
-        .append_header(("Location", "/dashboard"))
-        .finish()
+    axum::response::Redirect::to("/dashboard")
 }
-async fn trade_code_for_token(req: &HttpRequest, ip: &String, code: &String) -> String {
+async fn trade_code_for_token(origin: &str, ip: &String, code: &String) -> String {
     let params = [
         ("grant_type", "authorization_code"),
         ("code", &code),
-        ("redirect_uri", &("http://".to_string() + &req.connection_info().host().to_string() + &"/authorizesuccess".to_string())),
+        ("redirect_uri", &("http://".to_string() + origin + &"/authorizesuccess".to_string())),
         ("client_id", "260c8b1e828041f8a6120f9eea11c15c"),
         ("client_secret", &std::env::var("SPOTIFY_CLIENT_SECRET").unwrap())];
     let client = reqwest::Client::new();
@@ -61,74 +60,62 @@ async fn trade_code_for_token(req: &HttpRequest, ip: &String, code: &String) -> 
     v["access_token"].to_string()
 }
 
-#[get("/test")]
-async fn test(req: HttpRequest) -> impl Responder {
+async fn test(ConnectInfo(addr): ConnectInfo<SocketAddr>, request: Request) -> &'static str {
     println!("Received request to /test");
-    println!("{}", req.method().to_string());
-    println!("--");
-    println!("{}", req.path().to_string());
-    println!("--");
-    println!("{},{},{}", req.connection_info().realip_remote_addr().unwrap().to_string(), req.peer_addr().unwrap().to_string(), req.connection_info().host().to_string());
-    println!("--");
-    println!("{}", &("http://".to_string() + &req.connection_info().host().to_string() + &"/loginsuccess".to_string()));
-    // for (key,value) in req.headers().iter() {
-    //     println!("{}:{}", key.to_string(), value.to_str().unwrap());
-    // }
+    println!("{}", addr);
+    println!("{:?}", request);
     "test"
 }
 
-#[get("/signup")]
-async fn signup() -> impl Responder {
+async fn signup() -> impl axum::response::IntoResponse {
     println!("Received request to /signup");
-    let html_content = std::fs::read_to_string("assets/signup.html").unwrap();
-    HttpResponse::Ok()
-        .content_type("text/html")
-        .body(html_content)
+    let path = Path::new("assets/signup.html");
+    // Read the file asynchronously
+    let mut file = File::open(path).await.unwrap();
+    let mut contents = Vec::new();
+    file.read_to_end(&mut contents).await.unwrap();
+    axum::response::Response::builder()
+        .header("Content-Type", "text/html")
+        .body(body::Body::from(contents))
+        .unwrap()
 }
 
-#[derive(serde::Deserialize)]
-struct SignupSubmitQuery {
-    username: String,
-    hashed_password: String,
-    salt: String,
-}
-#[post("/signupsubmit")]
-async fn signupsubmit(ssq: web::Json<SignupSubmitQuery>) -> impl Responder {
+// struct SignupSubmitQuery {
+//     username: String,
+//     hashed_password: String,
+//     salt: String,
+// }
+async fn signupsubmit(Json(payload): Json<Value>) -> impl axum::response::IntoResponse {
     println!("Received request to /signupsubmit");
-    let username = &ssq.0.username;
-    let hashed_password = &ssq.0.hashed_password;
-    let salt = &ssq.0.salt;
+    let username = payload.get("username").unwrap().as_str().unwrap();
+    // let username = query.get("username").unwrap();
+    let hashed_password = payload.get("hashed_password").unwrap().as_str().unwrap();
+    let salt = payload.get("salt").unwrap().as_str().unwrap();
     println!("{}\n{}\n{}", username, hashed_password, salt);
     "Hello"
 }
 
-// #[get("/{name}")]
-// async fn hello(name: web::Path<String>) -> impl Responder {
-//     format!("Hello {}!", &name)
-// }
+pub fn main() {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            // build our application with a route
+            let app = Router::new()
+                .route("/", get(index))
+                .route("/authorize", get(authorize))
+                .route("/authorizesuccess", get(authorizesuccess))
+                .route("/signup", get(signup))
+                .route("/signupsubmit", post(signupsubmit))
+                .route("/test", get(test));
+                // .route("/users", post(create_user));
 
-#[actix_web::main]
-pub async fn main() -> std::io::Result<()> {
-    println!("Attempting to run Web Server on port 35565");
-    let server = HttpServer::new(
-        || App::new()
-        .service(index)
-        .service(authorize)
-        .service(authorizesuccess)
-        .service(signup)
-        .service(signupsubmit)
-        .service(test))
-        .bind(("0.0.0.0", 35565))?
-        .run()
-        .await;
-    return server;
+            let listener = tokio::net::TcpListener::bind("0.0.0.0:35565").await.unwrap();
+            // axum::serve(listener, app).await.unwrap(); //Swapped for alternative below because we need client IP
+            axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+        })
 }
-
-// look into account handling
-//     1 account can have multiple profiles
-// look into setting cookie to store token
-//     if they have token stored and not expired, dont get it again
-// look into persistent authorization to do automatic backups every night
 
 /* Sign Up
 - User visits "/signup"
