@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Sign Up</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="" />
+    <link href="https://cdn.jsdelivr.net/npm/modern-normalize@v3.0.1/modern-normalize.min.css" rel="stylesheet">
+    <link rel="icon" href="favicon.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+</head>
+<body>
+    Username<input id="usr" type="text" />
+    Password<input id="pwd" type="text" />
+    <button onclick="submit();">Submit</button>
+    <script>
+        var bcrypt = dcodeIO.bcrypt;
+        function submit() {
+            let salt = generateSalt();
+            let hashedPassword = hashWithSalt(pwd.value, salt);
+            let data = {
+                username: usr.value,
+                hashed_password: hashedPassword,
+                salt: salt,
+            }
+            fetch(window.location.origin + '/signupsubmit', {
+                method: 'POST',
+                headers: {
+                'Content-Type': 'application/json' // This indicates the content type is JSON
+                },
+                body: JSON.stringify(data) // Convert the data to a JSON string
+            })
+                .then(response => response.text()) // Parse the JSON response
+                .then(result => console.log('Success:', result))
+                .catch(error => console.error('Error:', error));
+        }
+        function generateSalt() {
+            return bcrypt.genSaltSync(1);
+        }
+        function hashWithSalt(inputString, salt) {
+            return bcrypt.hashSync(inputString, salt);
+        }
+    </script>
+</body>
+</html>
