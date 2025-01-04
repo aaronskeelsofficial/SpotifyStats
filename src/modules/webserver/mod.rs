@@ -119,7 +119,7 @@ async fn loginrequest(Json(req_payload): Json<Value>) -> Json<Value> /*axum::Jso
     println!("Received request to /loginrequest");
     let username = req_payload.get("username").unwrap().as_str().unwrap();
     let profile = crate::modules::database::profile_info::get_account_info(username);
-    println!("{:?}", profile);
+    // println!("{:?}", profile);
     if profile.is_err() {
         let json_value: Value = serde_json::from_str(
             r#"{
@@ -172,11 +172,17 @@ async fn loginsubmit(Json(req_payload): Json<Value>) -> Json<Value> {
         ).unwrap();
         return Json(json_value);
     } else {
-        if profile.unwrap().hashed_password.eq(&hashed_password) {
-            println!("Passwords match!");
+        let profile = profile.unwrap();
+        if profile.hashed_password.eq(&hashed_password) {
+            // println!("Passwords match!");
+            //Invalidate nonce
+            crate::modules::encryption::loginnonce::remove_nonce(nonce);
+            //Register token
+            let token = crate::modules::encryption::logintoken::request_generate_token_for_uuid(&profile.uuid);
             let string = format!(r#"{{
-                "status": "correctpassword"
-            }}"#);
+                "status": "correctpassword",
+                "token": "{}"
+            }}"#, &token);
             let json_value: Value = serde_json::from_str(&string).unwrap();
             // let json_value: Value = serde_json::from_str("{}").unwrap();
             return Json(json_value);
@@ -200,6 +206,7 @@ pub fn main() {
         .block_on(async {
             // Begin nonce cleanup task
             tokio::spawn(crate::modules::encryption::loginnonce::cleanup_nonces());
+            tokio::spawn(crate::modules::database::logintoken_info::cleanup_tokens());
 
             // build our application with a route
             let app = Router::new()

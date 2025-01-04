@@ -7,7 +7,7 @@ lazy_static! {
     static ref NONCES_LOGIN: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
 }
 
-const NONCE_LIFETIME: TokioDuration = TokioDuration::from_secs(10);
+const NONCE_LIFETIME: TokioDuration = TokioDuration::from_secs(60*5);
 
 
 // Generate a random alphanumeric nonce
@@ -37,7 +37,12 @@ pub fn is_nonce_valid(nonce: &str) -> bool {
 // Remove a nonce from the global map
 pub fn remove_nonce(nonce: &str) {
     let mut nonces = NONCES_LOGIN.lock().unwrap();
-    nonces.remove(nonce);
+    let _option = nonces.remove(nonce);
+    // if let Some(_) = option {
+    //     println!("Successfully removed nonce");
+    // } else {
+    //     println!("Could not remove nonce");
+    // }
 }
 
 // Cleanup expired nonces based on their timestamp

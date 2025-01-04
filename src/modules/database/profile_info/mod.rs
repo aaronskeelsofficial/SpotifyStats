@@ -55,5 +55,6 @@ pub fn get_account_info(username: &str) -> Result<ProfileInfo> {
             })
         },
     );
+    conn.close().unwrap();
     return query;
 }

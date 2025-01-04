@@ -1,5 +1,6 @@
 pub mod oath_info;
 pub mod profile_info;
+pub mod logintoken_info;
 
 /* oauth.db
 ip TEXT PRIMARY KEY,
