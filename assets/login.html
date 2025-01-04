@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Login</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="" />
+    <link href="https://cdn.jsdelivr.net/npm/modern-normalize@v3.0.1/modern-normalize.min.css" rel="stylesheet">
+    <link rel="icon" href="favicon.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/2.3.1/jsencrypt.min.js"></script>
+</head>
+<body>
+    Username<input id="usr" type="text" />
+    Password<input id="pwd" type="text" />
+    <button onclick="submit();">Submit</button>
+    <script>
+        var bcrypt = dcodeIO.bcrypt;
+        function submit() {
+            // - Client makes POST request w/ username to "/loginrequest" waiting for response with salt, nonce, and public key
+            let data = {
+                username: usr.value,
+            }
+            fetch(window.location.origin + '/loginrequest', {
+                method: 'POST',
+                headers: {
+                'Content-Type': 'application/json' // This indicates the content type is JSON
+                },
+                body: JSON.stringify(data) // Convert the data to a JSON string
+            })
+                .then(response => response.json()) // Parse the JSON response
+                .then(result => {
+                    console.log('Success:', result);
+                    valid_submit(result);
+                })
+                .catch(error => console.error('Error:', error));
+            function valid_submit(data1) {
+                let password = pwd.value;
+                // - Client salts password with salt
+                // - Client hashes salted password
+                let hashedPassword = hashWithSalt(password, data1.salt);
+                // - Client appends hashed password with nonce
+                let noncedPassword = hashedPassword + data1.nonce;
+                // - Client encrypts appended password with public key
+                var encrypt = new JSEncrypt();
+                var base64PublicKey = data1.public_key;
+                var decodedPublicKey = window.atob(base64PublicKey);
+                var formatAdheredPublicKey = decodedPublicKey;
+                encrypt.setPublicKey(formatAdheredPublicKey);
+                var encryptedPassword = encrypt.encrypt(noncedPassword);
+                console.log("password: " + password);
+                console.log("hashedPassword: " + hashedPassword);
+                console.log("noncedPassword: " + noncedPassword);
+                console.log("encryptedPassword: " + encryptedPassword);
+                // - Client POST request to "/loginsubmit" with username, encrypted password, nonce
+                let data2 = {
+                    username: data.username,
+                    encrypted_password: encryptedPassword,
+                    nonce: data1.nonce
+                }
+                fetch(window.location.origin + '/loginsubmit', {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'application/json' // This indicates the content type is JSON
+                    },
+                    body: JSON.stringify(data2) // Convert the data to a JSON string
+                })
+                    .then(response => response.json()) // Parse the JSON response
+                    .then(result => {
+                        console.log('Success:', result);
+                    })
+                    .catch(error => console.error('Error:', error));
+            }
+        }
+        function generateSalt() {
+            return bcrypt.genSaltSync(1);
+        }
+        function hashWithSalt(inputString, salt) {
+            return bcrypt.hashSync(inputString, salt);
+        }
+    </script>
+</body>
+</html>

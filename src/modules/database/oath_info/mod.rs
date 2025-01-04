@@ -3,7 +3,7 @@ use rusqlite::{params, Connection, Result};
 
 pub fn set_access_code(ip: &String, code: &String) -> Result<()> {
     // Specify the path to the SQLite database file
-    let db_path = "assets/oauth.db";
+    let db_path = "assets/oauth_info.db";
 
     // Open the connection to the SQLite database file
     let conn = Connection::open(db_path)?;

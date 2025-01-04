@@ -1,4 +1,4 @@
 /target
 .env
-oauth.db
-database.db
+.env2
+*.db

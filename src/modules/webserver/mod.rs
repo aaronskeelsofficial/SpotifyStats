@@ -1,8 +1,10 @@
-use std::{collections::HashMap, net::SocketAddr, path::Path};
+use std::{collections::HashMap, env, net::SocketAddr, path::Path};
+
 use axum::{body, extract::{ConnectInfo, Query, Request}, http::HeaderMap, routing::{get, post}, Json, Router };
 use chrono::Duration;
 use serde_json::Value;
 use tokio::{fs::File, io::AsyncReadExt};
+use uuid::Uuid;
 
 async fn index() -> &'static str {
     println!("Received request to /");
@@ -92,7 +94,102 @@ async fn signupsubmit(Json(payload): Json<Value>) -> impl axum::response::IntoRe
     let hashed_password = payload.get("hashed_password").unwrap().as_str().unwrap();
     let salt = payload.get("salt").unwrap().as_str().unwrap();
     println!("{}\n{}\n{}", username, hashed_password, salt);
+    crate::modules::database::profile_info::set_account_info(&Uuid::new_v4().to_string(), username, hashed_password, salt).unwrap();
+    println!("Set account info");
     "Hello"
+}
+
+async fn login() -> impl axum::response::IntoResponse {
+    println!("Received request to /login");
+    let path = Path::new("assets/login.html");
+    // Read the file asynchronously
+    let mut file = File::open(path).await.unwrap();
+    let mut contents = Vec::new();
+    file.read_to_end(&mut contents).await.unwrap();
+    axum::response::Response::builder()
+        .header("Content-Type", "text/html")
+        .body(body::Body::from(contents))
+        .unwrap()
+}
+
+// struct LoginRequestQuery {
+//     username: String,
+// }
+async fn loginrequest(Json(req_payload): Json<Value>) -> Json<Value> /*axum::Json<Value>*/ {
+    println!("Received request to /loginrequest");
+    let username = req_payload.get("username").unwrap().as_str().unwrap();
+    let profile = crate::modules::database::profile_info::get_account_info(username);
+    println!("{:?}", profile);
+    if profile.is_err() {
+        let json_value: Value = serde_json::from_str(
+            r#"{
+                "status": "error"
+            }"#
+        ).unwrap();
+        return Json(json_value);
+    } else {
+        let string = format!(r#"{{
+            "status": "success",
+            "salt": "{}",
+            "nonce": "{}",
+            "public_key": "{}"
+        }}"#, profile.unwrap().salt, crate::modules::encryption::loginnonce::generate_nonce(), env::var("LOGIN_RSA_PUBLIC_KEY").unwrap());
+        let json_value: Value = serde_json::from_str(&string).unwrap();
+        // let json_value: Value = serde_json::from_str("{}").unwrap();
+        return Json(json_value);
+    }
+}
+
+// struct LoginSubmitQuery {
+//     username: String,
+//     encrypted_password: String,
+//     nonce: String,
+// }
+async fn loginsubmit(Json(req_payload): Json<Value>) -> Json<Value> {
+    println!("Received request to /loginsubmit");
+    //Parse Query
+    let username = req_payload.get("username").unwrap().as_str().unwrap();
+    let encrypted_password = req_payload.get("encrypted_password").unwrap().as_str().unwrap();
+    let nonce = req_payload.get("nonce").unwrap().as_str().unwrap();
+    // println!("{}\n{}\n{}", username, encrypted_password, nonce);
+    //Decrypt Password
+    let nonced_password = crate::modules::encryption::decrypt_login(encrypted_password);
+    let hashed_password = nonced_password.replace(nonce, "");
+    let profile = crate::modules::database::profile_info::get_account_info(username);
+    if !crate::modules::encryption::loginnonce::is_nonce_valid(nonce) {
+        let json_value: Value = serde_json::from_str(
+            r#"{
+                "status": "invalidnonce"
+            }"#
+        ).unwrap();
+        return Json(json_value);
+    }
+    if profile.is_err() {
+        let json_value: Value = serde_json::from_str(
+            r#"{
+                "status": "error"
+            }"#
+        ).unwrap();
+        return Json(json_value);
+    } else {
+        if profile.unwrap().hashed_password.eq(&hashed_password) {
+            println!("Passwords match!");
+            let string = format!(r#"{{
+                "status": "correctpassword"
+            }}"#);
+            let json_value: Value = serde_json::from_str(&string).unwrap();
+            // let json_value: Value = serde_json::from_str("{}").unwrap();
+            return Json(json_value);
+        } else {
+            println!("Passwords do not match!");
+            let string = format!(r#"{{
+                "status": "incorrectpassword"
+            }}"#);
+            let json_value: Value = serde_json::from_str(&string).unwrap();
+            // let json_value: Value = serde_json::from_str("{}").unwrap();
+            return Json(json_value);
+        }
+    }
 }
 
 pub fn main() {
@@ -101,6 +198,9 @@ pub fn main() {
         .build()
         .unwrap()
         .block_on(async {
+            // Begin nonce cleanup task
+            tokio::spawn(crate::modules::encryption::loginnonce::cleanup_nonces());
+
             // build our application with a route
             let app = Router::new()
                 .route("/", get(index))
@@ -108,6 +208,9 @@ pub fn main() {
                 .route("/authorizesuccess", get(authorizesuccess))
                 .route("/signup", get(signup))
                 .route("/signupsubmit", post(signupsubmit))
+                .route("/login", get(login))
+                .route("/loginrequest", post(loginrequest))
+                .route("/loginsubmit", post(loginsubmit))
                 .route("/test", get(test));
                 // .route("/users", post(create_user));
 
