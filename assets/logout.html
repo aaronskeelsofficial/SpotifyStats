@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Logout</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="" />
+    <link rel="icon" href="favicon.png">
+    <!-- Used for cookie manipulation -->
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+</head>
+<body>
+    <script>
+        Cookies.remove("token");
+        let params = new URLSearchParams(window.location.search);
+        let redir = params.has("redir") ? params.get("redir") : "/";
+        window.location.href = redir;
+    </script>
+</body>
+</html>

@@ -12,17 +12,6 @@ fn generate_token() -> String {
     token
 }
 
-pub fn request_generate_token_for_uuid(uuid: &String) -> String {
-    let potential_logintoken_info = crate::modules::database::logintoken_info::get_logintokeninfo_from_uuid(uuid);
-    if if_token_already_exists(&potential_logintoken_info) && if_token_timestamp_is_valid(&potential_logintoken_info) {
-        return potential_logintoken_info.unwrap().token.unwrap();
-    } else {
-        let token = generate_token();
-        crate::modules::database::logintoken_info::set_token_info(&token, uuid, &Utc::now().to_rfc3339().to_string()).unwrap();
-        return token;
-    }
-}
-
 fn if_token_already_exists(potential_logintoken_info: &Result<LoginTokenInfo, rusqlite::Error>) -> bool {
     match potential_logintoken_info {
         Ok(_) => true,
@@ -46,6 +35,17 @@ fn if_token_timestamp_is_valid(potential_logintoken_info: &Result<LoginTokenInfo
     }
 }
 
+pub fn request_generate_token_for_uuid(uuid: &String) -> String {
+    let potential_logintoken_info = crate::modules::database::logintoken_info::get_logintokeninfo_from_uuid(uuid);
+    if if_token_already_exists(&potential_logintoken_info) && if_token_timestamp_is_valid(&potential_logintoken_info) {
+        return potential_logintoken_info.unwrap().token.unwrap();
+    } else {
+        let token = generate_token();
+        crate::modules::database::logintoken_info::set_token_info(&token, uuid, &Utc::now().to_rfc3339().to_string()).unwrap();
+        return token;
+    }
+}
+
 pub fn validate_and_ping_token(token: &String) -> bool {
     let potential_logintoken_info = crate::modules::database::logintoken_info::get_logintokeninfo_from_token(token);
     if if_token_already_exists(&potential_logintoken_info) && if_token_timestamp_is_valid(&potential_logintoken_info) {
@@ -55,4 +55,8 @@ pub fn validate_and_ping_token(token: &String) -> bool {
     } else {
         return false;
     }
+}
+
+pub fn invalidate_token(token: &String) {
+    crate::modules::database::logintoken_info::remove_token(token);
 }

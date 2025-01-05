@@ -16,13 +16,13 @@ pub struct LoginTokenInfo {
     pub last_used_timestamp: Option<String>,
 }
 
-// pub const TOKEN_TOKIOLIFETIME: tokio::time::Duration = tokio::time::Duration::from_secs(60*20);
-// pub const TOKEN_CHRONOLIFETIME: chrono::Duration = chrono::Duration::seconds(60*20);
-pub const TOKEN_TOKIOLIFETIME: tokio::time::Duration = tokio::time::Duration::from_secs(5);
-pub const TOKEN_CHRONOLIFETIME: chrono::Duration = chrono::Duration::seconds(5);
+pub const TOKEN_TOKIO_CLEANUP_INTERVAL: tokio::time::Duration = tokio::time::Duration::from_secs(60*20);
+pub const TOKEN_CHRONOLIFETIME: chrono::Duration = chrono::Duration::seconds(60*20);
+// pub const TOKEN_TOKIOLIFETIME: tokio::time::Duration = tokio::time::Duration::from_secs(5);
+// pub const TOKEN_CHRONOLIFETIME: chrono::Duration = chrono::Duration::seconds(30);
 pub async fn cleanup_tokens() {
     loop {
-        sleep(TOKEN_TOKIOLIFETIME).await;
+        sleep(TOKEN_TOKIO_CLEANUP_INTERVAL).await;
         let now = Utc::now();
         let death_point = now - TOKEN_CHRONOLIFETIME;
         let conn_guard = LOGININFO_CONN.lock().unwrap();
@@ -31,7 +31,7 @@ pub async fn cleanup_tokens() {
             WHERE lastusedtimestamp <= ?1",
             params![death_point.to_rfc3339().to_string()]
         ).unwrap();
-        println!("Token cleanup complete");
+        println!("LoginToken cleanup complete");
     }
 }
 
@@ -128,4 +128,13 @@ pub fn get_logintokeninfo_from_token(token: &String) -> Result<LoginTokenInfo> {
         },
     );
     return query;
+}
+
+pub fn remove_token(token: &String) {
+    let conn_guard = LOGININFO_CONN.lock().unwrap();
+    conn_guard.execute(
+        "DELETE FROM logintoken_info
+        WHERE token = ?1",
+        params![token]
+    ).unwrap();
 }

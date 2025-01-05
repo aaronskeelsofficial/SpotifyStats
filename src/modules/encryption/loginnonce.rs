@@ -53,6 +53,6 @@ pub async fn cleanup_nonces() {
         let mut nonces = NONCES_LOGIN.lock().unwrap();
         // Iterate through the nonces and remove those that have expired
         nonces.retain(|_, timestamp| now.duration_since(*timestamp) < NONCE_LIFETIME);
-        println!("Cleanup complete. Current active nonces: {}", nonces.len());
+        println!("Nonce cleanup complete. Current active nonces: {}", nonces.len());
     }
 }

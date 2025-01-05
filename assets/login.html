@@ -7,8 +7,12 @@
     <meta name="description" content="" />
     <link href="https://cdn.jsdelivr.net/npm/modern-normalize@v3.0.1/modern-normalize.min.css" rel="stylesheet">
     <link rel="icon" href="favicon.png">
+    <!-- Used for hashing and salting -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+    <!-- Used for RSA and PEM encryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/2.3.1/jsencrypt.min.js"></script>
+    <!-- Used for cookie manipulation -->
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
 </head>
 <body>
     Username<input id="usr" type="text" />
@@ -67,8 +71,14 @@
                     body: JSON.stringify(data2) // Convert the data to a JSON string
                 })
                     .then(response => response.json()) // Parse the JSON response
-                    .then(result => {
-                        console.log('Success:', result);
+                    .then(data3 => {
+                        console.log('Success:', data3);
+                        if (data3.status == "correctpassword") {
+                            let date = new Date();
+                            date.setTime(date.getTime() + (1000*60*20));
+                            Cookies.set("token", data3.token, { expires: date, sameSite: "Lax" });
+                            window.location.href = "/dashboard";
+                        }
                     })
                     .catch(error => console.error('Error:', error));
             }
