@@ -1,14 +1,15 @@
+use std::sync::Mutex;
+
 use chrono::{DateTime, Timelike, Utc};
 use rusqlite::{params, Connection, Result};
 use lazy_static::lazy_static;
-use tokio::sync::Mutex;
 
 lazy_static! {
     pub static ref OAUTHINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/oauth_info.db").unwrap());
 }
 
-pub async fn set_access_code(uuid: &String, code: &String) -> Result<()> {
-    let conn_guard = OAUTHINFO_CONN.lock().await;
+pub fn set_access_code(uuid: &String, code: &String) -> Result<()> {
+    let conn_guard = OAUTHINFO_CONN.lock().unwrap();
     // Create a table if it doesn't exist
     conn_guard.execute(
         "CREATE TABLE IF NOT EXISTS oauth_info
@@ -35,8 +36,8 @@ pub async fn set_access_code(uuid: &String, code: &String) -> Result<()> {
     Ok(())
 }
 
-pub async fn set_token_info(uuid: &String, token: &String, token_type: &String, expires_timestamp: &DateTime<Utc>, refresh_token: &String) {
-    let conn_guard = OAUTHINFO_CONN.lock().await;
+pub fn set_token_info(uuid: &String, token: &String, token_type: &String, expires_timestamp: &DateTime<Utc>, refresh_token: &String) {
+    let conn_guard = OAUTHINFO_CONN.lock().unwrap();
     conn_guard.execute(
         "INSERT INTO oauth_info (uuid,token,tokentype,expiresseconds,expiresnanoseconds,refreshtoken)
         VALUES (?1,?2,?3,?4,?5,?6)

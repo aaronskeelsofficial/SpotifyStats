@@ -1,8 +1,9 @@
 use std::{collections::HashMap, env, net::SocketAddr, path::Path};
 use axum::{body, extract::{ConnectInfo, Query, Request}, http::HeaderMap, routing::{get, post}, Json, Router };
 use axum_extra::extract::CookieJar;
+use base64::{prelude::BASE64_STANDARD, Engine};
 use chrono::Duration;
-use reqwest::StatusCode;
+use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use tokio::{fs::File, io::AsyncReadExt};
 use uuid::Uuid;
@@ -24,11 +25,12 @@ async fn authorize(jar: CookieJar) -> impl axum::response::IntoResponse {
     }
     //
     let base_url = "https://accounts.spotify.com/authorize".to_string();
-    let client_id = "?client_id=260c8b1e828041f8a6120f9eea11c15c".to_string();
+    let client_id = "?client_id=".to_string() + &env::var("SPOTIFY_CLIENT_ID").unwrap();
     let response_type = "&response_type=code".to_string();
     let redirect_uri = "&redirect_uri=http://206.13.112.71:35565/authorizesuccess".to_string();
     let scope = "&scope=user-read-recently-played".to_string();
-    let prompt = "&prompt=login".to_string(); //This forces them to login even if they already authenticated an account.
+    let prompt = "&show_dialog=false".to_string();
+    // let prompt = "&show_dialog=true".to_string(); //This forces them to login even if they already authenticated an account.
     let full_url = base_url + &client_id + &response_type + &redirect_uri + &scope + &prompt;
     println!("Redirection to Spotify");
     axum::response::Redirect::to( &full_url)
@@ -40,9 +42,6 @@ async fn authorize(jar: CookieJar) -> impl axum::response::IntoResponse {
 #[axum::debug_handler]
 async fn authorizesuccess(jar: CookieJar, Query(query): Query<HashMap<String, String>>, headers: HeaderMap) -> axum::response::Redirect {
     println!("Received request to /authorizesuccess");
-    for cookie in jar.iter() {
-        println!("{} = {}\n", cookie.name(), cookie.value());
-    }
     //Authenticate
     if jar.get("token").is_none() {
         println!("User had no token cookie. Redirecting to /login");
@@ -58,30 +57,45 @@ async fn authorizesuccess(jar: CookieJar, Query(query): Query<HashMap<String, St
     let code = query.get("code").unwrap();
     let origin = headers.get("host").unwrap().to_str().unwrap();
     println!("Setting access code");
-    crate::modules::database::oauth_info::set_access_code(&uuid, &code);
+    crate::modules::database::oauth_info::set_access_code(&uuid, &code).unwrap();
     println!("Trading code for token");
     let _token = trade_code_for_token(origin, &uuid, &code).await;
     println!("Received code and token");
     axum::response::Redirect::to("/dashboard")
 }
 async fn trade_code_for_token(origin: &str, uuid: &String, code: &String) -> String {
+    // let params = [
+    //     ("grant_type", "authorization_code"),
+    //     ("code", &code),
+    //     ("redirect_uri", &("http://".to_string() + origin + &"/authorizesuccess".to_string())),
+    //     ("client_id", &env::var("SPOTIFY_CLIENT_ID").unwrap()),
+    //     ("client_secret", &std::env::var("SPOTIFY_CLIENT_SECRET").unwrap())];
+    // let client = reqwest::Client::new();
+    // let res = client.post("https://accounts.spotify.com/api/token")
+    //     .form(&params)
+    //     .send()
+    //     .await.unwrap();
     let params = [
         ("grant_type", "authorization_code"),
         ("code", &code),
         ("redirect_uri", &("http://".to_string() + origin + &"/authorizesuccess".to_string())),
-        ("client_id", "260c8b1e828041f8a6120f9eea11c15c"),
-        ("client_secret", &std::env::var("SPOTIFY_CLIENT_SECRET").unwrap())];
+        /*("client_id", &env::var("SPOTIFY_CLIENT_ID").unwrap()),
+        ("client_secret", &env::var("SPOTIFY_CLIENT_SECRET").unwrap())*/];
+    let auth_string = "Basic ".to_string() + &BASE64_STANDARD.encode(env::var("SPOTIFY_CLIENT_ID").unwrap() + &":".to_string() + &env::var("SPOTIFY_CLIENT_SECRET").unwrap());
     let client = reqwest::Client::new();
-    let res = client.post("https://accounts.spotify.com/api/token")
+    let res = client
+        .post("https://accounts.spotify.com/api/token")
+        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .header("Authorization", auth_string)
         .form(&params)
-        .send()
-        .await.unwrap();
+        .send().await.unwrap();
     let v: serde_json::Value = serde_json::from_str(&res.text().await.unwrap()).unwrap();
     println!("{}",v);
-    let token = v["access_token"].to_string();
-    let token_type = v["token_type"].to_string();
+    let token = v["access_token"].to_string().replace("\"", "");
+    let token_type = v["token_type"].to_string().replace("\"", "");
     let expires_timestamp = chrono::Utc::now() + Duration::seconds(v["expires_in"].as_i64().unwrap());
-    let refresh_token = v["refresh_token"].to_string();
+    let refresh_token = v["refresh_token"].to_string().replace("\"", "");
+    println!("Received refresh_token: {}", &refresh_token);
     crate::modules::database::oauth_info::set_token_info(&uuid, &token, &token_type, &expires_timestamp, &refresh_token);
     v["access_token"].to_string()
 }
@@ -98,6 +112,18 @@ async fn test(ConnectInfo(addr): ConnectInfo<SocketAddr>, request: Request) -> &
 async fn testscrape() -> impl axum::response::IntoResponse {
     println!("Received request to /testscrape");
     crate::modules::scraper::do_task_without_time_check().await;
+    "response"
+}
+
+async fn testapi() -> impl axum::response::IntoResponse {
+    println!("Received request to /testapi");
+    let auth_string = "Bearer ".to_string() + &"BQDhh-eXILrxli0iMaPyI-FIhGbQjBEw3eRfv7HkUjuDj4cZP7XJqLvW9RWDmIh5gojEMaV2VYtc91pyMY9ko7llU2XnaDf-n9cOLk0nN4j1PZwxpuB2n4i9JsM1kv4JL_9IphEpBZcZllQ5HJgur2W8R4T7WunqicEkJtgEzumhzqRyJwS6KjIn".to_string();
+    let client = Client::new();
+    let res: String = client
+        .get("https://api.spotify.com/v1/me")
+        .header("Authorization", auth_string)
+        .send().await.unwrap().text().await.unwrap();
+    println!("{}", res);
     "response"
 }
 
@@ -251,7 +277,7 @@ async fn logout(jar: CookieJar) -> impl axum::response::IntoResponse {
 }
 
 pub fn main() {
-    tokio::runtime::Builder::new_current_thread()
+    tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap()
@@ -272,7 +298,8 @@ pub fn main() {
                 .route("/loginsubmit", post(loginsubmit))
                 .route("/logout", get(logout))
                 .route("/test", get(test))
-                .route("/testscrape", get(testscrape));
+                .route("/testscrape", get(testscrape))
+                .route("/testapi", get(testapi));
                 // .route("/users", post(create_user));
 
             let listener = tokio::net::TcpListener::bind("0.0.0.0:35565").await.unwrap();
