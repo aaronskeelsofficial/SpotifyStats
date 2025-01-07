@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Result};
 use lazy_static::lazy_static;
 
@@ -18,8 +18,7 @@ pub fn set_access_code(uuid: &String, code: &String) -> Result<()> {
             code TEXT,
             token TEXT,
             tokentype TEXT,
-            expiresseconds BIGINT,
-            expiresnanoseconds INT UNSIGNED,
+            expirestimestamp TEXT,
             refreshtoken TEXT
         )",
         [],
@@ -29,7 +28,8 @@ pub fn set_access_code(uuid: &String, code: &String) -> Result<()> {
         "INSERT INTO oauth_info (uuid,code)
         VALUES (?1,?2)
         ON CONFLICT (uuid)
-        DO UPDATE SET code = EXCLUDED.code",
+        DO UPDATE SET
+            code = EXCLUDED.code",
         params![&uuid, &code],
     )?;
 
@@ -39,15 +39,24 @@ pub fn set_access_code(uuid: &String, code: &String) -> Result<()> {
 pub fn set_token_info(uuid: &String, token: &String, token_type: &String, expires_timestamp: &DateTime<Utc>, refresh_token: &String) {
     let conn_guard = OAUTHINFO_CONN.lock().unwrap();
     conn_guard.execute(
-        "INSERT INTO oauth_info (uuid,token,tokentype,expiresseconds,expiresnanoseconds,refreshtoken)
+        "INSERT INTO oauth_info (uuid,token,tokentype,expirestimestamp,refreshtoken)
         VALUES (?1,?2,?3,?4,?5,?6)
         ON CONFLICT (uuid)
         DO UPDATE SET
             token = EXCLUDED.token,
             tokentype = EXCLUDED.tokentype,
-            expiresseconds = EXCLUDED.expiresseconds,
-            expiresnanoseconds = EXCLUDED.expiresnanoseconds,
+            expirestimestamp = EXCLUDED.expirestimestamp,
             refreshtoken = EXCLUDED.refreshtoken",
-        params![&uuid, &token, &token_type, &expires_timestamp.timestamp(), &expires_timestamp.nanosecond(), refresh_token],
+        params![&uuid, &token, &token_type, &expires_timestamp.to_rfc3339().to_string(), refresh_token],
+    ).unwrap();
+}
+
+pub fn cleanse_invalid_info() {
+    let conn_guard = OAUTHINFO_CONN.lock().unwrap();
+    let now = Utc::now().to_rfc3339().to_string();
+    conn_guard.execute(
+        "DELETE FROM oauth_info
+        WHERE expirestimestamp < ?1",
+        params![&now],
     ).unwrap();
 }
