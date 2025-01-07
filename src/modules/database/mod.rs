@@ -1,3 +1,5 @@
+use std::path::Path;
+
 pub mod oauth_info;
 pub mod profile_info;
 pub mod logintoken_info;
@@ -5,6 +7,17 @@ pub mod album_info;
 pub mod artist_info;
 pub mod track_info;
 pub mod listen_history_info;
+
+pub fn first_init_if_necessary() {
+    std::fs::create_dir_all(Path::new("assets").join(Path::new("db"))).unwrap();
+    album_info::first_init_if_necessary();
+    artist_info::first_init_if_necessary();
+    listen_history_info::first_init_if_necessary();
+    logintoken_info::first_init_if_necessary();
+    oauth_info::first_init_if_necessary();
+    profile_info::first_init_if_necessary();
+    track_info::first_init_if_necessary();
+}
 
 /* oauth_info.db
 ip TEXT PRIMARY KEY,

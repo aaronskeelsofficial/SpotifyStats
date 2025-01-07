@@ -5,10 +5,10 @@ use lazy_static::lazy_static;
 use rusqlite::{params, Connection, Result};
 
 lazy_static! {
-    static ref ARTISTINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/artist_info.db").unwrap());
+    static ref ARTISTINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/artist_info.db").unwrap());
 }
 
-pub fn register_artist(artist: &Artist) -> Result<()> {
+pub fn first_init_if_necessary() {
     let conn_guard = ARTISTINFO_CONN.lock().unwrap();
     // Create a table if it doesn't exist
     conn_guard.execute(
@@ -18,7 +18,11 @@ pub fn register_artist(artist: &Artist) -> Result<()> {
             name TEXT
         )",
         [],
-    )?;
+    ).unwrap();
+}
+
+pub fn register_artist(artist: &Artist) -> Result<()> {
+    let conn_guard = ARTISTINFO_CONN.lock().unwrap();
     // Insert some data into the table
     conn_guard.execute(
         "INSERT OR IGNORE INTO artist_info (spotifyid,name)

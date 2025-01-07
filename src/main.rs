@@ -18,17 +18,24 @@ fn main() {
     //     println!("- \n{}\n{}", var, var2);
     // }
 
+    //Initialize database stuff
+    crate::modules::database::first_init_if_necessary();
+
     // Spawn a separate thread for the web server
     let webserver_thread = std::thread::spawn(|| {
-        // This is the entry point of the Actix server, managed by the `#[actix_web::main]` macro
-        modules::webserver::main(); // Unwrap safely if no error expected
+        modules::webserver::main();
+    });
+    // Spawn a separate thread for the scraper
+    let timedscraper_thread = std::thread::spawn(|| {
+        modules::scraper::main();
     });
 
     // Other tasks can run in the main thread here
-    println!("Main thread is doing other tasks...");
 
     // Wait for the web server thread to finish
     webserver_thread.join().unwrap();
+    // Wait for the web server thread to finish
+    timedscraper_thread.join().unwrap();
     println!("Main thread has finished.");
 }
 

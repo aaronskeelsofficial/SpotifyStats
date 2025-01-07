@@ -4,10 +4,10 @@ use lazy_static::lazy_static;
 use rusqlite::{params, Connection, Result};
 
 lazy_static! {
-    static ref LISTENHISTORYINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/listen_history_info.db").unwrap());
+    static ref LISTENHISTORYINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/listen_history_info.db").unwrap());
 }
 
-pub fn register_listen(uuid: &String, pho: &PlayHistoryObject) -> Result<()> {
+pub fn first_init_if_necessary() {
     let conn_guard = LISTENHISTORYINFO_CONN.lock().unwrap();
     // Create a table if it doesn't exist
     conn_guard.execute(
@@ -21,7 +21,11 @@ pub fn register_listen(uuid: &String, pho: &PlayHistoryObject) -> Result<()> {
             UNIQUE (uuid, trackhashid, artists, albumspotifyid, timestamp)
         )",
         [],
-    )?;
+    ).unwrap();
+}
+
+pub fn register_listen(uuid: &String, pho: &PlayHistoryObject) -> Result<()> {
+    let conn_guard = LISTENHISTORYINFO_CONN.lock().unwrap();
     // Insert some data into the table
     let trackhashid = &pho.track.get_hashid();
     let artists = crate::modules::database::artist_info::artist_vec_to_json(&pho.track.artists);

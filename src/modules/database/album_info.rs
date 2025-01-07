@@ -4,7 +4,25 @@ use lazy_static::lazy_static;
 use rusqlite::{params, Connection, OptionalExtension, Result};
 
 lazy_static! {
-    static ref ALBUMINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/album_info.db").unwrap());
+    static ref ALBUMINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/album_info.db").unwrap());
+}
+
+pub fn first_init_if_necessary() {
+    let conn_guard = ALBUMINFO_CONN.lock().unwrap();
+    // Create a table if it doesn't exist
+    conn_guard.execute(
+        "CREATE TABLE IF NOT EXISTS album_info
+        (
+            spotifyid TEXT PRIMARY KEY,
+            name TEXT,
+            artists TEXT,
+            images TEXT,
+            releasedate TEXT,
+            releasedateprecision TEXT,
+            totaltracks INT UNSIGNED
+        )",
+        [],
+    ).unwrap();
 }
 
 pub fn register_album(album: &Album) -> Result<()> {

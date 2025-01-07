@@ -148,17 +148,38 @@ async fn signup() -> impl axum::response::IntoResponse {
 async fn signupsubmit(Json(payload): Json<Value>) -> impl axum::response::IntoResponse {
     println!("Received request to /signupsubmit");
     let username = payload.get("username").unwrap().as_str().unwrap();
-    // let username = query.get("username").unwrap();
+    //Check if username exists already (Error)
+    if crate::modules::database::profile_info::if_username_exists(&username.to_string()) {
+        let string = "{\"status\":\"usernameexists\"}";
+        let json_value: Value = serde_json::from_str(string).unwrap();
+        return Json(json_value);
+    }
+    //
     let hashed_password = payload.get("hashed_password").unwrap().as_str().unwrap();
     let salt = payload.get("salt").unwrap().as_str().unwrap();
     println!("{}\n{}\n{}", username, hashed_password, salt);
-    crate::modules::database::profile_info::set_account_info(&Uuid::new_v4().to_string(), username, hashed_password, salt).unwrap();
+    let uuid = Uuid::new_v4().to_string();
+    crate::modules::database::profile_info::set_account_info(&uuid, username, hashed_password, salt).unwrap();
     println!("Set account info");
-    "Hello"
+    //
+    let token = crate::modules::encryption::logintoken::request_generate_token_for_uuid(&uuid);
+    let string = format!(r#"{{
+        "status": "accountcreated",
+        "token": "{}"
+    }}"#, &token);
+    let json_value: Value = serde_json::from_str(&string).unwrap();
+    return Json(json_value);
 }
 
-async fn login() -> impl axum::response::IntoResponse {
+async fn login(jar: CookieJar) -> impl axum::response::IntoResponse {
     println!("Received request to /login");
+    if jar.get("token").is_some() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/dashboard")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
     let path = Path::new("assets/login.html");
     // Read the file asynchronously
     let mut file = File::open(path).await.unwrap();
@@ -300,11 +321,11 @@ pub fn main() {
                 .route("/test", get(test))
                 .route("/testscrape", get(testscrape))
                 .route("/testapi", get(testapi));
-                // .route("/users", post(create_user));
 
             let listener = tokio::net::TcpListener::bind("0.0.0.0:35565").await.unwrap();
-            // axum::serve(listener, app).await.unwrap(); //Swapped for alternative below because we need client IP
-            axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+            //Swapped for alternative below because we need client IP
+            axum::serve(listener, app).await.unwrap();
+            // axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
         })
 }
 

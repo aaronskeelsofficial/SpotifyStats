@@ -4,13 +4,11 @@ use lazy_static::lazy_static;
 use rusqlite::{params, Connection, Result};
 
 lazy_static! {
-    static ref TRACKINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/track_info.db").unwrap());
+    static ref TRACKINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/track_info.db").unwrap());
 }
 
-pub fn register_track(track: &Track) -> Result<()> {
+pub fn first_init_if_necessary() {
     let conn_guard = TRACKINFO_CONN.lock().unwrap();
-    //TODO: Consider adding functionality where "popularity" updates similar to album_info.rs updating images
-
     // Create a table if it doesn't exist
     conn_guard.execute(
         "CREATE TABLE IF NOT EXISTS track_info
@@ -25,7 +23,12 @@ pub fn register_track(track: &Track) -> Result<()> {
             tracknumber INTEGER
         )",
         [],
-    )?;
+    ).unwrap();
+}
+
+pub fn register_track(track: &Track) -> Result<()> {
+    let conn_guard = TRACKINFO_CONN.lock().unwrap();
+    //TODO: Consider adding functionality where "popularity" updates similar to album_info.rs updating images?;
     // Insert some data into the table
     let hashid = track.get_hashid();
     let artists = crate::modules::database::artist_info::artist_vec_to_json(&track.artists);

@@ -1,7 +1,6 @@
-use std::{env, sync::Mutex};
+use std::sync::Mutex;
 
-use base64::prelude::*;
-use chrono::{DateTime, Duration, Timelike, Utc};
+use chrono::{DateTime, Duration, Local, Timelike, Utc};
 use lazy_static::lazy_static;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -15,19 +14,22 @@ lazy_static! {
 }
 
 pub fn main() {
-    tokio::runtime::Builder::new_current_thread()
+    tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap()
         .block_on(async {
             loop {
-                do_task_without_time_check().await;
                 let average_song_duration = 3;
                 let maximum_songs_per_request = 50;
-                let total_runtime = average_song_duration*maximum_songs_per_request;
+                let total_runtime: u64 = average_song_duration*maximum_songs_per_request;
                 //We sleep for 2.5 hours because if you listened nonstop to average length music
                 // that's how long we could wait for a queue of 50 (because spotify only stores last 50)
+                let new_time = Local::now() + chrono::Duration::minutes(total_runtime.try_into().unwrap());
+                println!("Next scrape @: {}", new_time.to_string());
+                // do_task_without_time_check().await;
                 sleep(std::time::Duration::from_secs(60*total_runtime)).await;
+                do_task_without_time_check().await;
             }
         });
 }
@@ -44,78 +46,59 @@ pub async fn do_task_with_time_check() {
         return;
     }
     tokio::task::block_in_place(|| {
-        actual_scrape_task();
+        actual_scrape_task_for_all();
     });
     // actual_scrape_task();
 }
 
 pub async fn do_task_without_time_check() {
     tokio::task::block_in_place(|| {
-        actual_scrape_task();
+        actual_scrape_task_for_all();
     });
     // actual_scrape_task();
 }
 
-fn actual_scrape_task() {
+fn actual_scrape_task_for_all() {
     //Scrape
     println!("Begining Spotify Scrape");
-    // Cleanse all expired authentication/refresh token pairs
-    crate::modules::database::oauth_info::cleanse_invalid_info();
+    // Revalidate all expired authentication/refresh token pairs
+    println!("Revalidating tokens");
+    crate::modules::database::oauth_info::revalidate_invalid_info();
     // Get all authentication/refresh token pairs
     let oauth_conn_guard = crate::modules::database::oauth_info::OAUTHINFO_CONN.lock().unwrap();
-    let info: Vec<(String, String, String)> = {
-        let stmt = &mut oauth_conn_guard.prepare("SELECT uuid,token,refreshtoken FROM oauth_info").unwrap();
+    let info: Vec<(String, String)> = {
+        let stmt = &mut oauth_conn_guard.prepare("SELECT uuid,token FROM oauth_info").unwrap();
         stmt.query_map([], |row| {
             let uuid: String = row.get(0)?;
             let token: String = row.get(1)?;
-            let refreshtoken: String = row.get(2)?;
-            Ok((uuid, token, refreshtoken))
+            Ok((uuid, token))
         })
         .unwrap()
         .filter_map(|result| result.ok())  // Filter out any errors
-        .map(|(uuid, token, refreshtoken)| {
+        .map(|(uuid, token)| {
             // Clone each String value
-            (uuid.clone(), token.clone(), refreshtoken.clone())
+            (uuid.clone(), token.clone())
         })
         .collect()  // Collect into a Vec
     };
     drop(oauth_conn_guard);
-    for (uuid,token,refreshtoken) in info {
-        println!("Handling pair: ({}, {})", &token, &refreshtoken);
-        //  Use refresh token to get new authentication token
-        println!("Using refresh token to get new authentication token");
-        let form_data = [
-            ("grant_type", "refresh_token"),
-            ("refresh_token", &refreshtoken),
-        ];
-        let auth_string = "Basic ".to_string() + &BASE64_STANDARD.encode(env::var("SPOTIFY_CLIENT_ID").unwrap() + &":".to_string() + &env::var("SPOTIFY_CLIENT_SECRET").unwrap());
-        let client = Client::new();
-        let res: String = tokio::runtime::Runtime::new().unwrap().block_on(async {
-            client
-                .post("https://accounts.spotify.com/api/token")
-                .header("content-type", "application/x-www-form-urlencoded")
-                .header("Authorization", auth_string)
-                .form(&form_data)
-                .send().await.unwrap().text().await.unwrap()
-        });
-        println!("{}", res);
-        let v: serde_json::Value = serde_json::from_str(&res).unwrap();
-        //  Update database with new authentication token
-        println!("Updating database with new auth token");
-        let token = v["access_token"].to_string().replace("\"", "");
-        let token_type = v["token_type"].to_string().replace("\"", "");
-        let expires_timestamp = chrono::Utc::now() + Duration::seconds(v["expires_in"].as_i64().unwrap());
-        let mut refresh_token = refreshtoken.clone();
-        if v.get("refresh_token").is_some() {
-            refresh_token = v.get("refresh_token").unwrap().to_string();
-        }
-        crate::modules::database::oauth_info::set_token_info(&uuid, &token, &token_type, &expires_timestamp, &refresh_token);
+    for (uuid,token) in info {
+        scrape(&uuid, &token);
+    }
+    println!("Done with scrape");
+    // //Update last scrape time
+    // let mut last_scrape_time_guard = LAST_SCRAPE_TIME.lock().unwrap();
+    // *last_scrape_time_guard = Utc::now();
+}
+
+pub fn scrape(uuid: &String, token: &String) {
+    println!("Handling Spotify scrape for: {}", &uuid);
         //  Pull data from spotify
-        println!("Pulling data from spotify");
         let form_data = [
             ("limit", 50),
         ];
         let auth_string = "Bearer ".to_string() + &token;
+        let client = Client::new();
         //   Manually do a first ping, and then have a custom secondary rolling ping
         println!("Pinging https://api.spotify.com/v1/me/player/recently-played");
         let res: String = tokio::runtime::Runtime::new().unwrap().block_on(async {
@@ -147,11 +130,6 @@ fn actual_scrape_task() {
         // }
         //  Add data to database
         add_data_to_database(&uuid, &recently_played_response);
-    }
-    println!("Done with pairs");
-    //Update last scrape time
-    let mut last_scrape_time_guard = LAST_SCRAPE_TIME.lock().unwrap();
-    *last_scrape_time_guard = Utc::now();
 }
 
 fn add_data_to_database(uuid: &String, rpr: &RecentlyPlayedResponse) {

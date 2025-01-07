@@ -6,7 +6,21 @@ use lazy_static::lazy_static;
 use tokio::time::sleep;
 
 lazy_static! {
-    static ref LOGININFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/logintoken_info.db").unwrap());
+    static ref LOGININFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/logintoken_info.db").unwrap());
+}
+
+pub fn first_init_if_necessary() {
+    let conn_guard = LOGININFO_CONN.lock().unwrap();
+    // Create a table if it doesn't exist
+    conn_guard.execute(
+        "CREATE TABLE IF NOT EXISTS logintoken_info
+        (
+            token TEXT PRIMARY KEY,
+            uuid TEXT NOT NULL,
+            lastusedtimestamp TEXT NOT NULL
+        )",
+        [],
+    ).unwrap();
 }
 
 #[derive(Debug)]
@@ -37,16 +51,6 @@ pub async fn cleanup_tokens() {
 
 pub fn set_token_info(token: &String, uuid: &String, last_used_timestamp: &String) -> Result<()> {
     let conn_guard = LOGININFO_CONN.lock().unwrap();
-    // Create a table if it doesn't exist
-    conn_guard.execute(
-        "CREATE TABLE IF NOT EXISTS logintoken_info
-        (
-            token TEXT PRIMARY KEY,
-            uuid TEXT NOT NULL,
-            lastusedtimestamp TEXT NOT NULL
-        )",
-        [],
-    )?;
     // Insert some data into the table
     conn_guard.execute(
         "INSERT INTO logintoken_info (token,uuid,lastusedtimestamp)

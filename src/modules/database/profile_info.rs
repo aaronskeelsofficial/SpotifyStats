@@ -1,12 +1,16 @@
-use rusqlite::{params, Connection, Result};
+use std::sync::Mutex;
 
-pub fn set_account_info(uuid: &String, username: &str, hashed_password: &str, salt: &str) -> Result<()> {
-    // Specify the path to the SQLite database file
-    let db_path = "assets/profile_info.db";
-    // Open the connection to the SQLite database file
-    let conn = Connection::open(db_path)?;
+use rusqlite::{params, Connection, Result};
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref PROFILEINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/profile_info.db").unwrap());
+}
+
+pub fn first_init_if_necessary() {
+    let conn_guard = PROFILEINFO_CONN.lock().unwrap();
     // Create a table if it doesn't exist
-    conn.execute(
+    conn_guard.execute(
         "CREATE TABLE IF NOT EXISTS profile_info
         (
             uuid TEXT PRIMARY KEY,
@@ -15,9 +19,13 @@ pub fn set_account_info(uuid: &String, username: &str, hashed_password: &str, sa
             salt TEXT NOT NULL
         )",
         [],
-    )?;
+    ).unwrap();
+}
+
+pub fn set_account_info(uuid: &String, username: &str, hashed_password: &str, salt: &str) -> Result<()> {
+    let conn_guard = PROFILEINFO_CONN.lock().unwrap();
     // Insert some data into the table
-    conn.execute(
+    conn_guard.execute(
         "INSERT INTO profile_info (uuid,username,hashed_password,salt)
         VALUES (?1,?2,?3,?4)
         ON CONFLICT (uuid)
@@ -27,7 +35,6 @@ pub fn set_account_info(uuid: &String, username: &str, hashed_password: &str, sa
             salt = EXCLUDED.salt",
         params![uuid, username, hashed_password, salt],
     )?;
-    conn.close().unwrap();
     Ok(())
 }
 
@@ -39,9 +46,8 @@ pub struct ProfileInfo {
     pub salt: String,
 }
 pub fn get_account_info(username: &str) -> Result<ProfileInfo> {
-    let db_path = "assets/profile_info.db";
-    let conn = Connection::open(db_path).unwrap();
-    let query = conn.query_row(
+    let conn_guard = PROFILEINFO_CONN.lock().unwrap();
+    let query = conn_guard.query_row(
         "SELECT uuid,username,hashed_password,salt
         FROM profile_info
         WHERE username = ?1",
@@ -55,6 +61,12 @@ pub fn get_account_info(username: &str) -> Result<ProfileInfo> {
             })
         },
     );
-    conn.close().unwrap();
     return query;
+}
+
+pub fn if_username_exists(username: &String) -> bool {
+    let conn_guard = PROFILEINFO_CONN.lock().unwrap();
+    let mut stmt = conn_guard.prepare("SELECT 1 FROM profile_info WHERE username = ? LIMIT 1").unwrap();
+    let mut rows = stmt.query(params![username]).unwrap();
+    rows.next().unwrap().is_some()
 }

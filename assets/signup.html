@@ -7,7 +7,10 @@
     <meta name="description" content="" />
     <link href="https://cdn.jsdelivr.net/npm/modern-normalize@v3.0.1/modern-normalize.min.css" rel="stylesheet">
     <link rel="icon" href="favicon.png">
+    <!-- Used for hashing and salting -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+    <!-- Used for cookie manipulation -->
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
 </head>
 <body>
     Username<input id="usr" type="text" />
@@ -30,8 +33,18 @@
                 },
                 body: JSON.stringify(data) // Convert the data to a JSON string
             })
-                .then(response => response.text()) // Parse the JSON response
-                .then(result => console.log('Success:', result))
+                .then(response => response.json()) // Parse the JSON response
+                .then(data2 => {
+                    console.log('Success:', data2);
+                    if (data2.status == "usernameexists") {
+                        alert("Username Taken");
+                    } else if (data2.status == "accountcreated") {
+                        let date = new Date();
+                        date.setTime(date.getTime() + (1000*60*20));
+                        Cookies.set("token", data2.token, { expires: date, sameSite: "Lax" });
+                        window.location.href = "/dashboard";
+                    }
+                })
                 .catch(error => console.error('Error:', error));
         }
         function generateSalt() {
