@@ -6,6 +6,9 @@ use rsa::{pkcs8::{EncodePrivateKey, EncodePublicKey}, RsaPrivateKey, RsaPublicKe
 
 pub mod modules;
 
+need to fix:
+- Database currently saves one spotify per account. Need to allow multiple.
+
 fn main() {
     println!("Launched");
     // generate_pubpriv_keys();

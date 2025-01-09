@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Dashboard</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="" />
+    <link href="https://cdn.jsdelivr.net/npm/modern-normalize@v3.0.1/modern-normalize.min.css" rel="stylesheet">
+    <link rel="icon" href="static/img/logo_16.png">
+    <!-- Used for cookie manipulation -->
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <!-- CSS -->
+    <style>
+        body {
+            background-image: linear-gradient(to right, #0f7533,black, black, #0f7533);
+        }
+        #header, #main, #footer {
+            overflow: hidden;
+            min-height: 0px;
+            max-height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="root" style="display:flex;flex-direction:column;justify-content:space-evenly;width:100vw;height:100vh;overflow-x:hidden;">
+        <div id="header" style="flex:1;position:relative;">
+            <img id="logoimg" src="/static/img/logo_120.png" style="height:80%;position:absolute;left:20px;top:50%;transform:translate(0,-50%);cursor:pointer;clip-path:circle(51%);" onclick="window.location.href='/';" />
+            <a href="/logout" style="text-decoration-line:none;position:absolute;right:20px;top:50%;transform:translate(0,-50%);color:black;border-radius:2px;background-color:white;padding:5px;">
+                <span>Logout</span>
+            </a>
+        </div>
+        <div id="main" style="flex:13;">
+            <div id="main2" style="width:99%;height:100%;margin-left:auto;margin-right:auto;border-radius:20px;position:relative;">
+                <div id="mainfilters" style="width:22%;height:100%;position:absolute;left:0px;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;">
+
+                </div>
+                <div id="mainresults" style="width:77.6%;height:100%;position:absolute;right:0px;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;">
+
+                </div>
+            </div>
+        </div>
+        <div id="footer" style="flex:1;">
+
+        </div>
+    </div>
+    <script>
+        let vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+        let vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+        //
+        if (true) {
+            let fontFile = new FontFace("Sposhify", "url(/static/font/GothamMedium.ttf)");
+            document.fonts.add(fontFile);
+            fontFile.load();
+        }
+    </script>
+</body>
+</html>

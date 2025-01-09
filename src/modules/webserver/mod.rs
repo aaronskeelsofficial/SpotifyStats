@@ -6,6 +6,7 @@ use chrono::Duration;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use tokio::{fs::File, io::AsyncReadExt};
+use tower_http::services::ServeDir;
 use uuid::Uuid;
 
 async fn index() -> &'static str {
@@ -291,10 +292,41 @@ async fn logout(jar: CookieJar) -> impl axum::response::IntoResponse {
     let mut file = File::open(path).await.unwrap();
     let mut contents = Vec::new();
     file.read_to_end(&mut contents).await.unwrap();
+    let token = jar.get("token").unwrap().value();
+    crate::modules::database::logintoken_info::remove_token(&token.to_string());
     axum::response::Response::builder()
         .header("Content-Type", "text/html")
         .body(body::Body::from(contents))
         .unwrap()
+}
+
+async fn dashboard(jar: CookieJar) -> impl axum::response::IntoResponse {
+    println!("Received request to /dashboard");
+    //Authenticate
+    if jar.get("token").is_none() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    let logintoken = jar.get("token").unwrap().value();
+    if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    //
+    let path = Path::new("assets/dashboard.html");
+    let mut file = File::open(path).await.unwrap();
+    let mut contents = Vec::new();
+    file.read_to_end(&mut contents).await.unwrap();
+    return axum::response::Response::builder()
+        .header("Content-Type", "text/html")
+        .body(body::Body::from(contents))
+        .unwrap();
 }
 
 pub fn main() {
@@ -318,9 +350,12 @@ pub fn main() {
                 .route("/loginrequest", post(loginrequest))
                 .route("/loginsubmit", post(loginsubmit))
                 .route("/logout", get(logout))
+                .route("/dashboard", get(dashboard))
                 .route("/test", get(test))
                 .route("/testscrape", get(testscrape))
-                .route("/testapi", get(testapi));
+                .route("/testapi", get(testapi))
+                // Serve static files
+                .nest_service("/static", ServeDir::new(Path::new("assets/static")));
 
             let listener = tokio::net::TcpListener::bind("0.0.0.0:35565").await.unwrap();
             //Swapped for alternative below because we need client IP
