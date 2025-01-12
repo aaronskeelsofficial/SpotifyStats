@@ -9,6 +9,8 @@
     <link rel="icon" href="static/img/logo_16.png" />
     <!-- Used for cookie manipulation -->
     <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <!-- Used for token cookie refresh/ping -->
+    <script src="static/js/tokenrefresh.js"></script>
     <!-- CSS -->
     <link rel="stylesheet" href="/static/css/globaldefaults.css" />
     <style>
@@ -70,7 +72,7 @@
                     <div style="height:1%;"></div>
                     <div id="mainsort" class="maincenter" style="width:100%;height:49.5%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
                         <p class="menuheader">Sort</p>
-                        <div id="mainsortinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;"></div>
+                        <div id="mainsortinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;overflow-y:auto;"></div>
                     </div>
                 </div>
                 <div id="mainresults" class="maincenter" style="width:55%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
@@ -102,8 +104,6 @@
             generate_albumspotifyid_to_name();
             generate_artistspotifyid_to_name();
             generate_trackhashid_to_name();
-            // Add playcount information
-            generate_playcount_info();
             //
             for (let [spotifyid,displayname] of Object.entries(spotifyid_displayname_info)) {
                 generate_account_card(spotifyid,displayname);
@@ -113,7 +113,9 @@
             generate_filter_card("Filter Artist Name", "artistname", "text:Artist Name");
             generate_filter_card("Filter Album Name", "albumname", "text:Album Name");
             generate_sort_card("Chronological", "timestamp", true, 1);
-            generate_sort_card("Play Count", "playcount", false, 1);
+            generate_sort_card("Song Play Count", "trackplaycount", false, 1);
+            generate_sort_card("Artist Play Count", "artistplaycount", false, 1);
+            generate_sort_card("Album Play Count", "albumplaycount", false, 1);
             generate_sort_card("Song Name", "trackname", false, 1);
             generate_sort_card("Artist Name", "artistname", false, 1);
             generate_sort_card("Album Name", "albumname", false, 1);
@@ -254,13 +256,26 @@
                 }
             }
         }
-        function generate_playcount_info() {
-            let playcountinfomap = {};
-            for (let lho of listen_history_info) {
-                playcountinfomap[lho.trackhashid] = lho.trackhashid in playcountinfomap ? playcountinfomap[lho.trackhashid]+1 : 1;
+        let trackplaycountinfomap; //trackhashid -> playcount
+        let artistplaycountinfomap; //artistspotifyid -> playcount
+        let albumplaycountinfomap; //albumspotifyid -> playcount
+        function load_playcount_info(data) {
+            trackplaycountinfomap = {};
+            artistplaycountinfomap = {};
+            albumplaycountinfomap = {};
+            for (let lho of data) {
+                trackplaycountinfomap[lho.trackhashid] = lho.trackhashid in trackplaycountinfomap ? trackplaycountinfomap[lho.trackhashid]+1 : 1;
             }
-            for (let lho of listen_history_info) {
-                lho.playcount = playcountinfomap[lho.trackhashid];
+            //
+            for (let lho of data) {
+                let artistids = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                for (let artistid of artistids) {
+                    artistplaycountinfomap[artistid] = artistid in artistplaycountinfomap ? artistplaycountinfomap[artistid]+1 : 1;
+                }
+            }
+            //
+            for (let lho of data) {
+                albumplaycountinfomap[lho.albumspotifyid] = lho.albumspotifyid in albumplaycountinfomap ? albumplaycountinfomap[lho.albumspotifyid]+1 : 1;
             }
         }
         // Generate Account Cards
@@ -488,6 +503,8 @@
                     if (insideParenthesis === 0 && tokens[i] === "|") {
                         orTokens.push(tokens.slice(startIndex, i));
                         startIndex = i + 1;
+                    } else {
+                        currentAndTokens.push(tokens[i]);
                     }
                 }
 
@@ -613,96 +630,248 @@
                 }
             }
             filtered_data = filterAlbumName(albumname, filtered_data);
-                //
-            //Sort data
-            if (SORT_sortbyid == "timestamp") {
-                filtered_data.sort((a,b) => a.timestamp > b.timestamp ? -1*SORT_incordecmultiplier : (a.timestamp < b.timestamp ? 1*SORT_incordecmultiplier : 0));
-                for (let lho of filtered_data) {
-                    let date = new Date(lho.timestamp);
-                    let hours = date.getHours();
-                    const minutes = date.getMinutes();
-                    const period = hours >= 12 ? 'PM' : 'AM';
-                    hours = hours % 12;
-                    hours = hours ? hours : 12; // Handle midnight (0 should become 12)
-                    // Format minutes to always be two digits
-                    const formattedMinutes = minutes.toString().padStart(2, '0');
-                    // Format the date to "hour:minute AM/PM month-day-year"
-                    const formattedDate = `${hours}:${formattedMinutes} ${period} ${date.getMonth() + 1}-${date.getDate()}-${date.getFullYear()}`;
-                    lho.specialvalue = formattedDate;
-                }
-            } else if (SORT_sortbyid == "playcount") {
-                filtered_data.sort((a,b) => a.playcount > b.playcount ? -1*SORT_incordecmultiplier : (a.playcount < b.playcount ? 1*SORT_incordecmultiplier : 0));
-                for (let lho of filtered_data) {
-                    lho.specialvalue = lho.playcount + " Plays";
-                }
-            } else if (SORT_sortbyid == "trackname") {
-                filtered_data.sort((a,b) => {
-                    let aval = trackhashid_to_name_map[a.trackhashid].toLowerCase();
-                    let bval = trackhashid_to_name_map[b.trackhashid].toLowerCase();
-                    return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
-                });
-                for (let lho of filtered_data) {
-                    lho.specialvalue = "";
-                }
-            } else if (SORT_sortbyid == "artistname") {
-                //This one is very special. Because there can be multiple artists per song, and people would want to know both independently
-                // in this sorted list, we need to duplicate/split the data per artist. THEN we will sort.
-                //First, duplicate/split
-                console.log(filtered_data.length);
-                for (let i = 0;i < filtered_data.length;i++) {
-                    let lho = filtered_data[i];
-                    if (lho.artists.length == 1)
+            //Filter functions to be used in sorting
+            function removeDuplicateTrackHashId(data) {
+                let handledset = [];
+                let newdata = [];
+                for (let lho of data) {
+                    if (handledset.includes(lho.trackhashid))
                         continue;
-                    let artistsarray = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
-                    // let artists = lho.artists;
-                    lho.artists = `["${artistsarray[0]}"]`;
-                    lho.specialvalue = "";
-                    for (let i = 0;i < artistsarray.length;i++) {
-                        if (i == 0)
-                            continue;
-                        let artist = artistsarray[i];
-                        let clone = Object.assign({}, lho);
-                        clone.artists = `["${artist}"]`;
-                        filtered_data.push(clone);
-                    }
+                    newdata.push(lho);
+                    handledset.push(lho.trackhashid);
                 }
-                console.log(filtered_data.length);
-                console.log(filtered_data);
-                //Second, now we sort
-                filtered_data.sort((a,b) => {
-                    let aartist = a.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
-                    let bartist = b.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
-                    let aval = artistspotifyid_to_name_map[aartist].toLowerCase();
-                    let bval = artistspotifyid_to_name_map[bartist].toLowerCase();
-                    return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
-                });
-            } else if (SORT_sortbyid == "albumname") {
-                filtered_data.sort((a,b) => {
-                    let aname = albumspotifyid_to_name_map[a.albumspotifyid];
-                    let bname = albumspotifyid_to_name_map[b.albumspotifyid];
-                    if (!aname && !bname) {
-                        return 0;
-                    } else if (!aname) {
-                        return 1;
-                    } else if (!bname) {
-                        return -1;
+                return newdata;
+            }
+            function removeDuplicateArtistSpotifyId(data) {
+                let handledset = [];
+                let newdata = [];
+                for (let lho of data) {
+                    if (handledset.includes(lho.artists)) {
+                        // console.log("Skipping: " + lho.artists);
+                        continue;
                     }
-                    let aval = aname.toLowerCase();
-                    let bval = albumspotifyid_to_name_map[b.albumspotifyid].toLowerCase();
-                    return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
-                });
-                for (let lho of filtered_data) {
-                    lho.specialvalue = "";
+                    newdata.push(lho);
+                    handledset.push(lho.artists);
+                }
+                return newdata;
+            }
+            function removeDuplicateTrackAndArtistName(data) {
+                let handledset = [];
+                let newdata = [];
+                for (let lho of data) {
+                    if (handledset.includes(lho.trackhashid + lho.artists))
+                        continue;
+                    newdata.push(lho);
+                    handledset.push(lho.trackhashid + lho.artists);
+                }
+                return newdata;
+            }
+            function removeDuplicateAlbumSpotifyId(data) {
+                let handledset = [];
+                let newdata = [];
+                for (let lho of data) {
+                    if (handledset.includes(lho.albumspotifyid))
+                        continue;
+                    newdata.push(lho);
+                    handledset.push(lho.albumspotifyid);
+                }
+                return newdata;
+            }
+            //Load playcount info
+            load_playcount_info(filtered_data);
+            //Sort data
+            let special_space = "&nbsp;&nbsp;&nbsp;&nbsp;";
+            let special_divider = special_space + "|" + special_space;
+            if (true) {
+                if (SORT_sortbyid == "timestamp") {
+                    filtered_data.sort((a,b) => a.timestamp > b.timestamp ? -1*SORT_incordecmultiplier : (a.timestamp < b.timestamp ? 1*SORT_incordecmultiplier : 0));
+                    for (let lho of filtered_data) {
+                        let date = new Date(lho.timestamp);
+                        let hours = date.getHours();
+                        const minutes = date.getMinutes();
+                        const period = hours >= 12 ? 'PM' : 'AM';
+                        hours = hours % 12;
+                        hours = hours ? hours : 12; // Handle midnight (0 should become 12)
+                        // Format minutes to always be two digits
+                        const formattedMinutes = minutes.toString().padStart(2, '0');
+                        // Format the date to "hour:minute AM/PM month-day-year"
+                        const formattedDate = `${hours}:${formattedMinutes} ${period} ${date.getMonth() + 1}-${date.getDate()}-${date.getFullYear()}`;
+                        if (albumspotifyid_to_name_map[lho.albumspotifyid])
+                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
+                        else
+                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%`;
+                        lho.secondaryhtmlstring = special_space + formattedDate;
+                    }
+                } else if (SORT_sortbyid == "trackplaycount") {
+                    filtered_data = removeDuplicateTrackHashId(filtered_data);
+                    filtered_data.sort((a,b) => {
+                        let aval = trackplaycountinfomap[a.trackhashid];
+                        let bval = trackplaycountinfomap[b.trackhashid];
+                        return aval > bval ? -1*SORT_incordecmultiplier : (aval < bval ? 1*SORT_incordecmultiplier : 0);
+                    });
+                    for (let lho of filtered_data) {
+                        if (albumspotifyid_to_name_map[lho.albumspotifyid])
+                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
+                        else
+                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%`;
+                        lho.secondaryhtmlstring = special_space + trackplaycountinfomap[lho.trackhashid] + " Play(s)";
+                    }
+                } else if (SORT_sortbyid == "artistplaycount") {
+                    //This one is very special. Because there can be multiple artists per song, and people would want to know both independently
+                    // in this sorted list, we need to duplicate/split the data per artist. THEN we will sort.
+                    //First, duplicate/split
+                    for (let i = 0;i < filtered_data.length;i++) {
+                        let lho = filtered_data[i];
+                        if (lho.artists.length == 1)
+                            continue;
+                        let artistsarray = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                        // let artists = lho.artists;
+                        lho.artists = `["${artistsarray[0]}"]`;
+                        lho.primaryhtmlstring = `%counter%. %artiststring%`;
+                        lho.secondaryhtmlstring = special_space + artistplaycountinfomap[artistsarray[0]] + " Plays";
+                        for (let i = 0;i < artistsarray.length;i++) {
+                            if (i == 0)
+                                continue;
+                            let artist = artistsarray[i];
+                            let clone = Object.assign({}, lho);
+                            clone.artists = `["${artist}"]`;
+                            clone.secondaryhtmlstring = special_space + artistplaycountinfomap[artist] + " Plays";
+                            filtered_data.push(clone);
+                        }
+                    }
+                    //Second, remove listenhistoryobjects with duplicate artists
+                    filtered_data = removeDuplicateArtistSpotifyId(filtered_data);
+                    //Third, now we sort
+                    filtered_data.sort((a,b) => {
+                        let aartist = a.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
+                        let bartist = b.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
+                        let aval = artistplaycountinfomap[aartist];
+                        let bval = artistplaycountinfomap[bartist];
+                        return aval > bval ? -1*SORT_incordecmultiplier : (aval < bval ? 1*SORT_incordecmultiplier : 0)
+                    });
+                } else if (SORT_sortbyid == "albumplaycount") {
+                    //Remove all entries without albums
+                    filtered_data = filtered_data.filter((item) => item.albumspotifyid in albumspotifyid_to_name_map);
+                    //Remove dupes
+                    filtered_data = removeDuplicateAlbumSpotifyId(filtered_data);
+                    //
+                    filtered_data.sort((a,b) => {
+                        let aval = albumplaycountinfomap[a.albumspotifyid];
+                        let bval = albumplaycountinfomap[b.albumspotifyid];
+                        return aval > bval ? -1*SORT_incordecmultiplier : (aval < bval ? 1*SORT_incordecmultiplier : 0);
+                    });
+                    for (let lho of filtered_data) {
+                        let artiststring = "";
+                        let artistids = "";
+                        for (let album of album_info) {
+                            if (album.spotifyid == lho.albumspotifyid) {
+                                artistids = album.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                                break;
+                            }
+                        }
+                        for (let artistid of artistids) {
+                            artiststring += artistspotifyid_to_name_map[artistid] + " & ";
+                        }
+                        artiststring = artiststring.substring(0, artiststring.length-3);
+                        lho.primaryhtmlstring = `%counter%. %albumname%${special_divider}${artiststring}`;
+                        lho.secondaryhtmlstring = special_space + albumplaycountinfomap[lho.albumspotifyid] + " Play(s)";
+                    }
+                } else if (SORT_sortbyid == "trackname") {
+                    filtered_data = removeDuplicateTrackHashId(filtered_data);
+                    filtered_data.sort((a,b) => {
+                        let aval = trackhashid_to_name_map[a.trackhashid].toLowerCase();
+                        let bval = trackhashid_to_name_map[b.trackhashid].toLowerCase();
+                        return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
+                    });
+                    for (let lho of filtered_data) {
+                        if (albumspotifyid_to_name_map[lho.albumspotifyid])
+                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
+                        else
+                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%`;
+                        lho.secondaryhtmlstring = special_space + trackplaycountinfomap[lho.trackhashid] + " Play(s)";
+                    }
+                } else if (SORT_sortbyid == "artistname") {
+                    //This one is very special. Because there can be multiple artists per song, and people would want to know both independently
+                    // in this sorted list, we need to duplicate/split the data per artist. THEN we will sort.
+                    //First, duplicate/split
+                    for (let i = 0;i < filtered_data.length;i++) {
+                        let lho = filtered_data[i];
+                        if (lho.artists.length == 1)
+                            continue;
+                        let artistsarray = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                        // let artists = lho.artists;
+                        lho.artists = `["${artistsarray[0]}"]`;
+                        lho.primaryhtmlstring = `%counter%. %artiststring%`;
+                        lho.secondaryhtmlstring = special_space + artistplaycountinfomap[artistsarray[0]] + " Plays";
+                        for (let i = 0;i < artistsarray.length;i++) {
+                            if (i == 0)
+                                continue;
+                            let artist = artistsarray[i];
+                            let clone = Object.assign({}, lho);
+                            clone.artists = `["${artist}"]`;
+                            clone.secondaryhtmlstring = special_space + artistplaycountinfomap[artist] + " Plays";
+                            filtered_data.push(clone);
+                        }
+                    }
+                    //Second, remove listenhistoryobjects with duplicate artists
+                    filtered_data = removeDuplicateArtistSpotifyId(filtered_data);
+                    //Third, now we sort
+                    filtered_data.sort((a,b) => {
+                        let aartist = a.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
+                        let bartist = b.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
+                        let aval = artistspotifyid_to_name_map[aartist].toLowerCase();
+                        let bval = artistspotifyid_to_name_map[bartist].toLowerCase();
+                        return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
+                    });
+                } else if (SORT_sortbyid == "albumname") {
+                    filtered_data = removeDuplicateAlbumSpotifyId(filtered_data);
+                    filtered_data.sort((a,b) => {
+                        let aname = albumspotifyid_to_name_map[a.albumspotifyid];
+                        let bname = albumspotifyid_to_name_map[b.albumspotifyid];
+                        if (!aname && !bname) {
+                            return 0;
+                        } else if (!aname) {
+                            return 1;
+                        } else if (!bname) {
+                            return -1;
+                        }
+                        let aval = aname.toLowerCase();
+                        let bval = albumspotifyid_to_name_map[b.albumspotifyid].toLowerCase();
+                        return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
+                    });
+                    for (let lho of filtered_data) {
+                        let artiststring = "";
+                        let artistids = "";
+                        for (let album of album_info) {
+                            if (album.spotifyid == lho.albumspotifyid) {
+                                artistids = album.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                                break;
+                            }
+                        }
+                        for (let artistid of artistids) {
+                            artiststring += artistspotifyid_to_name_map[artistid] + " & ";
+                        }
+                        artiststring = artiststring.substring(0, artiststring.length-3);
+                        lho.primaryhtmlstring = `%counter%. %albumname%${special_divider}${artiststring}`;
+                        lho.secondaryhtmlstring = special_space + albumplaycountinfomap[lho.albumspotifyid] + " Play(s)";
+                    }
                 }
             }
             //Create html results from filtered & sorted data
-            let handledsongsset = [];
             let counter = 0;
+            function handle_placeholders(string, lho, counter) {
+                let artiststring = "";
+                let artistids = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                for (let artistid of artistids)
+                    artiststring += artistspotifyid_to_name_map[artistid] + " & ";
+                artiststring = artiststring.substring(0, artiststring.length-3);
+                return string
+                    .replace("%counter%", counter)
+                    .replace("%trackname%", trackhashid_to_name_map[lho.trackhashid])
+                    .replace("%artiststring%", artiststring)
+                    .replace("%albumname%", albumspotifyid_to_name_map[lho.albumspotifyid]);
+            }
             for (let lho of filtered_data) {
-                if (handledsongsset.includes(lho.trackhashid + lho.artists)) { //If we have already handled this track (unique via name + artists), we want to skip it
-                    continue;
-                }
-
                 counter++;
                 let artistids = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
                 let artistnames = [];
@@ -712,26 +881,23 @@
                 //
                 let trackname = trackhashid_to_name_map[lho.trackhashid];
                 let albumname = albumspotifyid_to_name_map[lho.albumspotifyid];
-                let playcount = lho.playcount;
+                let trackplaycount = trackplaycountinfomap[lho.trackhashid];
                 //
                 let root = document.createElement("p");
                 root.style.marginBottom = "0px";
-                let str = counter + ". " + trackname + "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;";
-                for (let artistname of artistnames)
-                    str += artistname + " & ";
-                str = str.substring(0, str.length-3);
-                if (albumname)
-                    str += "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;" + albumname;
-                root.innerHTML = str;
+                // let str = counter + ". " + trackname + "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;";
+                // for (let artistname of artistnames)
+                //     str += artistname + " & ";
+                // str = str.substring(0, str.length-3);
+                // if (albumname)
+                //     str += "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;" + albumname;
+                root.innerHTML = handle_placeholders(lho.primaryhtmlstring, lho, counter);
                 attachpointelem.append(root);
-                if (lho.specialvalue != "") { //If the sorting leads to a special value being attached on the second line of each song
+                if (lho.secondaryhtmlstring != "") { //If the sorting leads to a special value being attached on the second line of each song
                     let specialvalue = document.createElement("span");
-                    specialvalue.innerHTML = "&nbsp;&nbsp;&nbsp;&nbsp;" + lho.specialvalue;
+                    specialvalue.innerHTML = handle_placeholders(lho.secondaryhtmlstring, lho, counter);
                     attachpointelem.append(specialvalue);
                 }
-
-                //We use this as the identifier instead of just track name because when we sort by artist, we duplicate tracks to show per-artist
-                handledsongsset.push(lho.trackhashid + lho.artists);
             }
             let fillerdiv = document.createElement("div");
             fillerdiv.style.height = "20px";

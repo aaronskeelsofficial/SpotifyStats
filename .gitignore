@@ -2,3 +2,5 @@
 .env
 .env2
 *.db
+output*.txt
+output.txt
