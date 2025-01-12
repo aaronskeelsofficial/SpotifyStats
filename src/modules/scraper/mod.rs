@@ -113,7 +113,7 @@ pub fn scrape(spotifyid: &String, token: &String) {
                 .query(&form_data)
                 .send().await.unwrap().text().await.unwrap()
         });
-        std::fs::write("output.txt", &res).unwrap();
+        std::fs::write(format!("output_{}.txt",spotifyid.get(0..5).unwrap()), &res).unwrap();
         let recently_played_response: RecentlyPlayedResponse = serde_json::from_str(&res).unwrap();
         //   Now do the custom rolling ping
         //   EDIT: Spotify only provides the last 50 songs. No need for a rolling ping.
