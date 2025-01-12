@@ -45,7 +45,7 @@ pub struct ProfileInfo {
     pub hashed_password: String,
     pub salt: String,
 }
-pub fn get_account_info(username: &str) -> Result<ProfileInfo> {
+pub fn get_account_info_from_username(username: &str) -> Result<ProfileInfo> {
     let conn_guard = PROFILEINFO_CONN.lock().unwrap();
     let query = conn_guard.query_row(
         "SELECT uuid,username,hashed_password,salt

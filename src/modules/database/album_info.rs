@@ -2,6 +2,7 @@ use std::sync::Mutex;
 use crate::modules::scraper::Album;
 use lazy_static::lazy_static;
 use rusqlite::{params, Connection, OptionalExtension, Result};
+use serde::Serialize;
 
 lazy_static! {
     static ref ALBUMINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/album_info.db").unwrap());
@@ -27,22 +28,6 @@ pub fn first_init_if_necessary() {
 
 pub fn register_album(album: &Album) -> Result<()> {
     let conn_guard = ALBUMINFO_CONN.lock().unwrap();
-
-    // // Create a table if it doesn't exist
-    // conn_guard.execute(
-    //     "CREATE TABLE IF NOT EXISTS album_info
-    //     (
-    //         spotifyid TEXT PRIMARY KEY,
-    //         name TEXT,
-    //         artists TEXT,
-    //         images TEXT,
-    //         releasedate TEXT,
-    //         releasedateprecision TEXT,
-    //         totaltracks INT UNSIGNED
-    //     )",
-    //     [],
-    // )?;
-    // // Insert some data into the table
     let artists = crate::modules::database::artist_info::artist_vec_to_json(&album.artists);
     let images = album.get_images_json();
     // conn_guard.execute(
@@ -78,4 +63,36 @@ pub fn register_album(album: &Album) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[derive(Serialize)]
+struct AlbumJsonObject {
+    spotifyid: String,
+    name: String,
+    artists: String,
+    images: String,
+    releasedate: String,
+    releasedateprecision: String,
+    totaltracks: i64,
+}
+pub fn get_info_as_json() -> String {
+    let conn_guard = ALBUMINFO_CONN.lock().unwrap();
+    let mut stmt = conn_guard.prepare("SELECT spotifyid, name, artists, images, releasedate, releasedateprecision, totaltracks FROM album_info").unwrap();
+    let album_info_iter = stmt.query_map(params![], |row| {
+        Ok(AlbumJsonObject {
+            spotifyid: row.get(0)?,
+            name: row.get(1)?,
+            artists: row.get(2)?,
+            images: row.get(3)?,
+            releasedate: row.get(4)?,
+            releasedateprecision: row.get(5)?,
+            totaltracks: row.get(6)?,
+        })
+    }).unwrap();
+    let mut album_info_list: Vec<AlbumJsonObject> = Vec::new();
+    for album_info in album_info_iter {
+        album_info_list.push(album_info.unwrap());
+    }
+    let json_result = serde_json::to_string(&album_info_list).unwrap();
+    return json_result;
 }

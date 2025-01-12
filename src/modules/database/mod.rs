@@ -20,8 +20,9 @@ pub fn first_init_if_necessary() {
 }
 
 /* oauth_info.db
-ip TEXT PRIMARY KEY,
-code TEXT,
+uuid TEXT,
+spotifyid TEXT,
+displayname TEXT,
 token TEXT,
 tokentype TEXT,
 expirestimestamp TEXT,  (rfc3339 format)
@@ -58,6 +59,7 @@ name TEXT
 
 /* track_info.db
 hashid TEXT     (SHA256 hashed string of name + comma + comma separated artist ids)
+spotifyid TEXT,
 name TEXT
 artists TEXT    (json array of artist ids)
 explicit INTEGER    (really a bool)
@@ -68,9 +70,10 @@ tracknumber INTEGER
 */
 
 /* listen_history_info.db
-uuid TEXT   (user account uuid)
-trackhashid TEXT
-artists TEXT    (json array of artist ids)
-albumspotifyid TEXT
-timestamp TEXT
+spotifyid TEXT,     (specific spotify account)
+trackhashid TEXT,
+artists TEXT,       (json array of artist ids)
+albumspotifyid TEXT,
+timestamp TEXT,
+UNIQUE (spotifyid,trackhashid,artists,albumspotifyid,timestamp)
 */

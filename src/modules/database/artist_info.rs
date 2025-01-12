@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use crate::modules::scraper::Artist;
 use lazy_static::lazy_static;
 use rusqlite::{params, Connection, Result};
+use serde::Serialize;
 
 lazy_static! {
     static ref ARTISTINFO_CONN: Mutex<Connection> = Mutex::new(Connection::open("assets/db/artist_info.db").unwrap());
@@ -46,4 +47,26 @@ pub fn artist_vec_to_comma_sep_string(artists: &Vec<Artist>) -> String {
         .collect::<Vec<String>>()
         .join(",");  // Join by comma
     return comma_separated_string;
+}
+
+#[derive(Serialize)]
+struct ArtistJsonObject {
+    spotifyid: String,
+    name: String,
+}
+pub fn get_info_as_json() -> String {
+    let conn_guard = ARTISTINFO_CONN.lock().unwrap();
+    let mut stmt = conn_guard.prepare("SELECT spotifyid, name FROM artist_info").unwrap();
+    let info_iter = stmt.query_map(params![], |row| {
+        Ok(ArtistJsonObject {
+            spotifyid: row.get(0)?,
+            name: row.get(1)?,
+        })
+    }).unwrap();
+    let mut info_list: Vec<ArtistJsonObject> = Vec::new();
+    for info in info_iter {
+        info_list.push(info.unwrap());
+    }
+    let json_result = serde_json::to_string(&info_list).unwrap();
+    return json_result;
 }

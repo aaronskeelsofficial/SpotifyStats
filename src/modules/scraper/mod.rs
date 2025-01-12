@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{collections::HashSet, sync::Mutex};
 
 use chrono::{DateTime, Duration, Local, Timelike, Utc};
 use lazy_static::lazy_static;
@@ -67,23 +67,28 @@ fn actual_scrape_task_for_all() {
     // Get all authentication/refresh token pairs
     let oauth_conn_guard = crate::modules::database::oauth_info::OAUTHINFO_CONN.lock().unwrap();
     let info: Vec<(String, String)> = {
-        let stmt = &mut oauth_conn_guard.prepare("SELECT uuid,token FROM oauth_info").unwrap();
+        let stmt = &mut oauth_conn_guard.prepare("SELECT spotifyid,token FROM oauth_info").unwrap();
         stmt.query_map([], |row| {
-            let uuid: String = row.get(0)?;
+            let spotifyid: String = row.get(0)?;
             let token: String = row.get(1)?;
-            Ok((uuid, token))
+            Ok((spotifyid, token))
         })
         .unwrap()
         .filter_map(|result| result.ok())  // Filter out any errors
-        .map(|(uuid, token)| {
+        .map(|(spotifyid, token)| {
             // Clone each String value
-            (uuid.clone(), token.clone())
+            (spotifyid.clone(), token.clone())
         })
         .collect()  // Collect into a Vec
     };
     drop(oauth_conn_guard);
-    for (uuid,token) in info {
-        scrape(&uuid, &token);
+    //
+    let mut handled_spotifyid: HashSet<String> = HashSet::new();
+    for (spotifyid,token) in info {
+        if !handled_spotifyid.contains(&spotifyid) {
+            scrape(&spotifyid, &token);
+            handled_spotifyid.insert(spotifyid.clone());
+        }
     }
     println!("Done with scrape");
     // //Update last scrape time
@@ -91,8 +96,8 @@ fn actual_scrape_task_for_all() {
     // *last_scrape_time_guard = Utc::now();
 }
 
-pub fn scrape(uuid: &String, token: &String) {
-    println!("Handling Spotify scrape for: {}", &uuid);
+pub fn scrape(spotifyid: &String, token: &String) {
+    println!("Handling Spotify scrape for: {}", &spotifyid);
         //  Pull data from spotify
         let form_data = [
             ("limit", 50),
@@ -129,10 +134,10 @@ pub fn scrape(uuid: &String, token: &String) {
         //     counter += 1;
         // }
         //  Add data to database
-        add_data_to_database(&uuid, &recently_played_response);
+        add_data_to_database(&spotifyid, &recently_played_response);
 }
 
-fn add_data_to_database(uuid: &String, rpr: &RecentlyPlayedResponse) {
+fn add_data_to_database(spotifyid: &String, rpr: &RecentlyPlayedResponse) {
     for pho in &rpr.items {
         //Add artists
         for artist in &pho.track.artists {
@@ -151,7 +156,7 @@ fn add_data_to_database(uuid: &String, rpr: &RecentlyPlayedResponse) {
         of the song id + artists id */
         crate::modules::database::track_info::register_track(&pho.track).unwrap();
         //Add listen
-        crate::modules::database::listen_history_info::register_listen(uuid, &pho).unwrap();
+        crate::modules::database::listen_history_info::register_listen(spotifyid, &pho).unwrap();
     }
 }
 

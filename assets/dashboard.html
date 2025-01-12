@@ -2,47 +2,68 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Dashboard</title>
+    <title>ASS - Dashboard</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="description" content="" />
     <link href="https://cdn.jsdelivr.net/npm/modern-normalize@v3.0.1/modern-normalize.min.css" rel="stylesheet">
-    <link rel="icon" href="static/img/logo_16.png">
+    <link rel="icon" href="static/img/logo_16.png" />
     <!-- Used for cookie manipulation -->
     <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
     <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/globaldefaults.css" />
     <style>
-        body {
-            background-image: linear-gradient(to right, #0f7533,black, black, #0f7533);
+        .menuheader {
+            /* position:absolute;left:50%;transform:translate(-50%,0); */
+            border-bottom: solid white;font-size:150%;
         }
-        #header, #main, #footer {
-            overflow: hidden;
-            min-height: 0px;
-            max-height: 100%;
+        .maincenter {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .card {
+            width: 95%;
+            background-color: black;
+            margin: auto;
+            margin-bottom: 5px;
+            position:relative;
+            border-radius: 5px;
+        }
+        .accountcard {
+            height: 100px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <div id="root" style="display:flex;flex-direction:column;justify-content:space-evenly;width:100vw;height:100vh;overflow-x:hidden;">
-        <div id="header" style="flex:1;position:relative;">
-            <img id="logoimg" src="/static/img/logo_120.png" style="height:80%;position:absolute;left:20px;top:50%;transform:translate(0,-50%);cursor:pointer;clip-path:circle(51%);" onclick="window.location.href='/';" />
-            <a href="/logout" style="text-decoration-line:none;position:absolute;right:20px;top:50%;transform:translate(0,-50%);color:black;border-radius:2px;background-color:white;padding:5px;">
-                <span>Logout</span>
+    <div id="root">
+        <div id="header">
+            <img id="logoimg" class="navbarlogo" src="/static/img/logo_120.png" onclick="window.location.href='/';" />
+            <a href="/logout" class="navbarlogout">
+                Logout
             </a>
         </div>
-        <div id="main" style="flex:13;">
-            <div id="main2" style="width:99%;height:100%;margin-left:auto;margin-right:auto;border-radius:20px;position:relative;">
-                <div id="mainfilters" style="width:22%;height:100%;position:absolute;left:0px;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;">
-
+        <div id="main">
+            <div id="main2">
+                <div id="mainacct" class="maincenter" style="width:22%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
+                    <p class="menuheader">Account</p>
+                    <div id="mainacctinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;padding-top:25px;"></div>
                 </div>
-                <div id="mainresults" style="width:77.6%;height:100%;position:absolute;right:0px;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;">
-
+                <div id="mainfilters" class="maincenter" style="width:22%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
+                    <p class="menuheader">Filters</p>
+                    <div id="mainfiltersinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;"></div>
+                </div>
+                <div id="mainresults" class="maincenter" style="width:55%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
+                    <p class="menuheader">Search</p>
+                    <div id="mainresultsinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;"></div>
                 </div>
             </div>
         </div>
-        <div id="footer" style="flex:1;">
-
+        <div id="footer" style="flex:1;position:relative;">
+            <p class="center" style="margin:0px;">Made With 🧠 By <a href="https://aaronskeels.work/" style="color:#1ed760">Aaron Skeels</a></p>
         </div>
     </div>
+    <div id="filterdropdownhideout" style="visibility:hidden;width:0px;height:0px;overflow:hidden;"></div>
     <script>
         let vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
         let vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
@@ -51,6 +72,319 @@
             let fontFile = new FontFace("Sposhify", "url(/static/font/GothamMedium.ttf)");
             document.fonts.add(fontFile);
             fontFile.load();
+        }
+        // Header info
+        let album_info, artist_info, track_info, listen_history_info, spotifyid_displayname_info;
+        load_data() //Load Database Information
+        .then(() => {
+            console.log("Info Loaded");
+            // Generate data conversion maps
+            generate_albumspotifyid_to_name();
+            generate_artistspotifyid_to_name();
+            generate_trackhashid_to_name();
+            //
+            for (let displayname of Object.values(spotifyid_displayname_info)) {
+                generate_account_card(displayname);
+            }
+            generate_add_account_card();
+            generate_filter_card("Filter Song Name", "text:Song Name");
+            generate_filter_card("Filter Artist Name", "text:Artist Name");
+            updateResultsWithFilters();
+        });
+        // Retrieve database information
+        async function get_album_info() {
+            return await fetch("/datapullalbum", {method: 'POST',headers: {'Content-Type': 'application/json'},body: ""})
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(jsonData => {
+                    return jsonData;
+                })
+                .catch(error => {
+                    // Handle errors
+                    console.error('There was a problem with the fetch operation:', error);
+                    return null;
+                });
+        }
+        async function get_artist_info() {
+            return await fetch("/datapullartist", {method: 'POST',headers: {'Content-Type': 'application/json'},body: ""})
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(jsonData => {
+                    return jsonData;
+                })
+                .catch(error => {
+                    // Handle errors
+                    console.error('There was a problem with the fetch operation:', error);
+                    return null;
+                });
+        }
+        async function get_track_info() {
+            return await fetch("/datapulltrack", {method: 'POST',headers: {'Content-Type': 'application/json'},body: ""})
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(jsonData => {
+                    return jsonData;
+                })
+                .catch(error => {
+                    // Handle errors
+                    console.error('There was a problem with the fetch operation:', error);
+                    return null;
+                });
+        }
+        async function get_listen_history_info() {
+            return await fetch("/datapulllisten", {method: 'POST',headers: {'Content-Type': 'application/json'},body: ""})
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(jsonData => {
+                    return jsonData;
+                })
+                .catch(error => {
+                    // Handle errors
+                    console.error('There was a problem with the fetch operation:', error);
+                    return null;
+                });
+        }
+        async function get_spotifyid_displayname_info() {
+            return await fetch("/datapullspotdisp", {method: 'POST',headers: {'Content-Type': 'application/json'},body: ""})
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(jsonData => {
+                    return jsonData;
+                })
+                .catch(error => {
+                    // Handle errors
+                    console.error('There was a problem with the fetch operation:', error);
+                    return null;
+                });
+        }
+        async function load_data() {
+            // Load all data concurrently using Promise.all
+            const results = await Promise.all([
+                get_album_info(),
+                get_artist_info(),
+                get_track_info(),
+                get_listen_history_info(),
+                get_spotifyid_displayname_info()
+            ]);
+            album_info = results[0];
+            artist_info = results[1];
+            track_info = results[2];
+            listen_history_info = results[3];
+            spotifyid_displayname_info = results[4];
+        }
+        let albumspotifyid_to_name_map = {},artistspotifyid_to_name_map = {},trackhashid_to_name_map = {};
+        function generate_albumspotifyid_to_name() {
+            for (let lho of listen_history_info) {
+                console.log("Checking album: " + lho.albumspotifyid);
+                for (let album of album_info) {
+                    console.log("        against: " + album.spotifyid);
+                    if (album.spotifyid == lho.albumspotifyid) {
+                        console.log("Found album");
+                        albumspotifyid_to_name_map[album.spotifyid] = album.name;
+                        break;
+                    }
+                }
+            }
+        }
+        function generate_artistspotifyid_to_name() {
+            for (let lho of listen_history_info) {
+                let artistids = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                for (let targetartistid of artistids) {
+                    for (let artist of artist_info) {
+                        if (artist.spotifyid == targetartistid) {
+                            artistspotifyid_to_name_map[artist.spotifyid] = artist.name;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        function generate_trackhashid_to_name() {
+            for (let lho of listen_history_info) {
+                for (let track of track_info) {
+                    if (track.hashid == lho.trackhashid) {
+                        trackhashid_to_name_map[track.hashid] = track.name;
+                        break;
+                    }
+                }
+            }
+        }
+        // Generate Account Cards
+        function generate_account_card(displayname) {
+            let root = document.createElement("div");
+            root.classList.add("card","accountcard");
+            root.dataset.displayname = displayname;
+            root.dataset.spotifyid = 
+            let innerText = document.createElement("p");
+            innerText.classList.add("center");
+            innerText.innerText = displayname;
+            innerText.style.margin = "0px";
+            root.append(innerText);
+            mainacctinner.append(root);
+        }
+        function generate_add_account_card() {
+            let root = document.createElement("div");
+            root.classList.add("card","accountcard","addaccountcard");
+            root.addEventListener("click", () => {window.location.href = "/authorize";});
+            let div = document.createElement("div");
+            div.classList.add("center");
+            root.append(div);
+            let plus = document.createElement("span");
+            plus.innerText = "+";
+            plus.style.margin = "0px";
+            div.append(plus);
+            mainacctinner.append(root);
+        }
+        // Generate Filter Cards
+        function generate_filter_card(name, options) {
+            if (true) {
+                let randomid = Math.floor(Math.random() * 1000000000000);
+                let root = document.createElement("div");
+                root.id = "filterroot_" + randomid;
+                root.style.backgroundColor = "black";
+                let str = `
+                <div id="firstrow" style="position:relative;">
+                    <input type="checkbox" style="width:25px;height:25px;" onchange="toggle_filter_card_content(${randomid}, this.checked);" /><span style="position:absolute;top:50%;transform:translate(0,-50%);">${name}</span>
+                </div>`;
+                root.innerHTML = str;
+                if (options) {
+                    let content = document.createElement("div");
+                    content.id = "filtercontent_" + randomid;
+                    filterdropdownhideout.append(content);
+                    for (let option of options.split(",")) {
+                        let colonIndex = option.indexOf(":");
+                        let key = option.substring(0, colonIndex);
+                        let value = option.substring(colonIndex+1);
+                        if (key == "html") {
+                            content.innerHTML = value;
+                        } else if (key == "text") {
+                            if (value != "") {
+                                let desc = document.createElement("span");
+                                desc.innerText = value + " ";
+                                content.append(desc);
+                            }
+                            let input = document.createElement("input");
+                            input.type = "text";
+                            content.append(input);
+                        }
+                    }
+                }
+                mainfiltersinner.append(root);
+            }
+        }
+        function toggle_filter_card_content(randomid, if_do_show) {
+            if (if_do_show) {
+                let child;
+                for (let c of filterdropdownhideout.childNodes) {
+                    if (c.id == "filtercontent_" + randomid) {
+                        child = c;
+                        break;
+                    }
+                }
+                document.getElementById("filterroot_" + randomid).append(child);
+            } else {
+                let root = document.getElementById("filterroot_" + randomid);
+                let child = root.children[1];
+                filterdropdownhideout.append(child);
+            }
+        }
+        // Filtering Functions
+        function filterTrack(expression, data) {
+            if (expression == "")
+                return data;
+            // Helper function to handle logical operations
+            function evaluate(tokens) {
+                if (tokens.length === 1) {
+                    // Base case: Single token is either true or false based on data
+                    // const word = tokens[0].replace(/"/g, '').trim(); // Remove quotes
+                    const word = tokens[0].replace(/"/g, ''); // Remove quotes
+                    return item => item.name.toLowerCase().includes(word.toLowerCase());
+                }
+
+                // Check for OR ('|') precedence
+                let orTokens = [];
+                let currentAndTokens = [];
+                let insideParenthesis = 0;
+                let startIndex = 0;
+
+                // Split based on OR operator but handle parentheses nesting
+                for (let i = 0; i < tokens.length; i++) {
+                    if (tokens[i] === "(") insideParenthesis++;
+                    if (tokens[i] === ")") insideParenthesis--;
+                    if (insideParenthesis === 0 && tokens[i] === "|") {
+                        orTokens.push(tokens.slice(startIndex, i));
+                        startIndex = i + 1;
+                    }
+                }
+
+                if (orTokens.length === 0) {
+                    orTokens.push(tokens.slice(startIndex)); // If no OR was found, use the whole token list
+                }
+
+                // Recursively evaluate AND expressions within OR groups
+                return item => {
+                    return orTokens.some(orToken => {
+                        // Evaluate AND expressions inside OR tokens
+                        const andConditions = orToken.join(" ").split("&").map(s => s.trim());
+                        return andConditions.every(cond => evaluate([cond])(item));
+                    });
+                };
+            }
+
+            // Tokenize expression (split by spaces, handle operators & parentheses)
+            function tokenize(expr) {
+                const regex = /(\&|\|)|(\(|\))/g;
+                return expr.replace(/\s+/g, ' ').split(regex).filter(Boolean).map(s => s.trim());
+            }
+
+            // Parse and evaluate expression
+            const tokens = tokenize(expression);
+            const evaluateTokens = evaluate(tokens);
+            
+            // Apply evaluation to the artistname of each object in the dataset
+            return data.filter(item => evaluateTokens(item));
+        }
+        function updateResultsWithFilters() {
+            let filtered_data = listen_history_info;
+            filtered_data = filterTrack("", filtered_data);
+            for (let lho of filtered_data) {
+                let artistids = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                let artistnames = [];
+                for (let artistid of artistids) {
+                    artistnames.push(artistspotifyid_to_name_map[artistid]);
+                }
+                //
+                let trackname = trackhashid_to_name_map[lho.trackhashid];
+                let albumname = albumspotifyid_to_name_map[lho.albumspotifyid];
+                //
+                let root = document.createElement("div");
+                let str = trackname + ", ";
+                for (let artistname of artistnames)
+                    str += artistname + " & ";
+                str += ", " + albumname;
+                root.innerText = str;
+                mainresultsinner.append(root);
+            }
         }
     </script>
 </body>

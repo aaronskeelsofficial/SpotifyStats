@@ -1,0 +1,78 @@
+body {
+    background-image: linear-gradient(to right, #0f7533,black, black, #0f7533);
+    font-family: Sposhify;
+}
+#header, #main, #footer {
+    overflow: hidden;
+    min-height: 0px;
+    max-height: 100%;
+}
+#root {
+    display:flex;
+    flex-direction:column;
+    justify-content:space-evenly;
+    width:100vw;
+    height:100vh;
+    overflow-x:hidden;
+}
+#header {
+    flex:1;
+    position:relative;
+}
+#main {
+    flex:13;
+}
+#main2 {
+    width:99%;height:100%;margin-left:auto;margin-right:auto;border-radius:20px;display:flex;justify-content:space-between;
+}
+p,span {
+    color: white;
+}
+.center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+}
+.navbarlogo {
+    height:80%;
+    position:absolute;
+    left:20px;
+    top:50%;
+    transform:translate(0,-50%);
+    cursor:pointer;
+    clip-path:circle(51%);
+}
+.navbarlogin {
+    text-decoration-line:none;
+    color:black;
+    border-radius:2px;
+    background-color:white;
+    padding:5px;
+    margin-left:10px;
+}
+.navbarlogout {
+    text-decoration-line:none;
+    position:absolute;
+    right:20px;
+    top:50%;
+    transform:translate(0,-50%);
+    color:black;
+    border-radius:2px;
+    background-color:white;
+    padding:5px;
+}
+.navbarsignup {
+    text-decoration-line:none;
+    color:black;
+    border-radius:2px;
+    background-color:white;
+    padding:5px;
+    padding-right:1px;
+}
+.navbarlogsign {
+    position:absolute;
+    right:20px;
+    top:50%;
+    transform:translate(0,-50%);
+}

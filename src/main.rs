@@ -6,9 +6,6 @@ use rsa::{pkcs8::{EncodePrivateKey, EncodePublicKey}, RsaPrivateKey, RsaPublicKe
 
 pub mod modules;
 
-need to fix:
-- Database currently saves one spotify per account. Need to allow multiple.
-
 fn main() {
     println!("Launched");
     // generate_pubpriv_keys();
@@ -29,7 +26,7 @@ fn main() {
         modules::webserver::main();
     });
     // Spawn a separate thread for the scraper
-    let timedscraper_thread = std::thread::spawn(|| {
+    let _timedscraper_thread = std::thread::spawn(|| {
         modules::scraper::main();
     });
 
@@ -37,8 +34,8 @@ fn main() {
 
     // Wait for the web server thread to finish
     webserver_thread.join().unwrap();
-    // Wait for the web server thread to finish
-    timedscraper_thread.join().unwrap();
+    // // Wait for the scraper thread to finish
+    // timedscraper_thread.join().unwrap();
     println!("Main thread has finished.");
 }
 

@@ -9,13 +9,33 @@ use tokio::{fs::File, io::AsyncReadExt};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 
-async fn index() -> &'static str {
+async fn index(jar: CookieJar) -> impl axum::response::IntoResponse {
     println!("Received request to /");
-    "Hello, World!"
+    //Authenticate
+    if jar.get("token").is_some() {
+        let logintoken = jar.get("token").unwrap().value();
+        if crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+            return axum::response::Response::builder()
+                .status(StatusCode::FOUND)
+                .header("Location", "/dashboard")
+                .body(body::Body::empty())
+                .unwrap();
+        }
+    }
+    //
+    let path = Path::new("assets/index.html");
+    let mut file = File::open(path).await.unwrap();
+    let mut contents = Vec::new();
+    file.read_to_end(&mut contents).await.unwrap();
+    return axum::response::Response::builder()
+        .header("Content-Type", "text/html")
+        .body(body::Body::from(contents))
+        .unwrap();
 }
 
-async fn authorize(jar: CookieJar) -> impl axum::response::IntoResponse {
+async fn authorize(jar: CookieJar, headers: HeaderMap) -> impl axum::response::IntoResponse {
     println!("Received request to /authorize");
+    println!("{}",headers.get("host").unwrap().to_str().unwrap());
     //Authenticate
     if jar.get("token").is_none() {
         return axum::response::Redirect::to("/login");
@@ -28,10 +48,10 @@ async fn authorize(jar: CookieJar) -> impl axum::response::IntoResponse {
     let base_url = "https://accounts.spotify.com/authorize".to_string();
     let client_id = "?client_id=".to_string() + &env::var("SPOTIFY_CLIENT_ID").unwrap();
     let response_type = "&response_type=code".to_string();
-    let redirect_uri = "&redirect_uri=http://206.13.112.71:35565/authorizesuccess".to_string();
+    let redirect_uri = format!("&redirect_uri=http://{}/authorizesuccess",headers.get("host").unwrap().to_str().unwrap()).to_string();
     let scope = "&scope=user-read-recently-played".to_string();
-    let prompt = "&show_dialog=false".to_string();
-    // let prompt = "&show_dialog=true".to_string(); //This forces them to login even if they already authenticated an account.
+    // let prompt = "&show_dialog=false".to_string();
+    let prompt = "&show_dialog=true".to_string(); //This forces them to login even if they already authenticated an account.
     let full_url = base_url + &client_id + &response_type + &redirect_uri + &scope + &prompt;
     println!("Redirection to Spotify");
     axum::response::Redirect::to( &full_url)
@@ -41,47 +61,52 @@ async fn authorize(jar: CookieJar) -> impl axum::response::IntoResponse {
 //     code: String,
 // }
 #[axum::debug_handler]
-async fn authorizesuccess(jar: CookieJar, Query(query): Query<HashMap<String, String>>, headers: HeaderMap) -> axum::response::Redirect {
+async fn authorizesuccess(jar: CookieJar, Query(query): Query<HashMap<String, String>>, headers: HeaderMap) -> impl axum::response::IntoResponse {
     println!("Received request to /authorizesuccess");
     //Authenticate
     if jar.get("token").is_none() {
-        println!("User had no token cookie. Redirecting to /login");
-        return axum::response::Redirect::to("/login");
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
     }
     let logintoken = jar.get("token").unwrap().value();
     if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
-        println!("User had a token cookie, but the token was not valid. Redirecting to /login");
-        return axum::response::Redirect::to("/login");
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
     }
     //
     let uuid = crate::modules::database::logintoken_info::get_logintokeninfo_from_token(&logintoken.to_string()).unwrap().uuid.unwrap();
     let code = query.get("code").unwrap();
     let origin = headers.get("host").unwrap().to_str().unwrap();
-    println!("Setting access code");
-    crate::modules::database::oauth_info::set_access_code(&uuid, &code).unwrap();
+    // println!("Setting access code");
+    // crate::modules::database::oauth_info::set_access_code(&uuid, &code).unwrap();
     println!("Trading code for token");
-    let _token = trade_code_for_token(origin, &uuid, &code).await;
+    let token = trade_code_for_token(origin, &uuid, &code).await;
+    if token.eq("") {
+        return axum::response::Response::builder()
+            .status(StatusCode::OK) // 302 Found
+            .header("content-type", "text/html")  // Redirect to the root path
+            .body(body::Body::from("ERROR: You must tell the developer to add your account to access development mode on developer.spotify.com or file an extension request to publish their app."))
+            .unwrap();
+    }
     println!("Received code and token");
-    axum::response::Redirect::to("/dashboard")
+    return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/dashboard")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
 }
 async fn trade_code_for_token(origin: &str, uuid: &String, code: &String) -> String {
-    // let params = [
-    //     ("grant_type", "authorization_code"),
-    //     ("code", &code),
-    //     ("redirect_uri", &("http://".to_string() + origin + &"/authorizesuccess".to_string())),
-    //     ("client_id", &env::var("SPOTIFY_CLIENT_ID").unwrap()),
-    //     ("client_secret", &std::env::var("SPOTIFY_CLIENT_SECRET").unwrap())];
-    // let client = reqwest::Client::new();
-    // let res = client.post("https://accounts.spotify.com/api/token")
-    //     .form(&params)
-    //     .send()
-    //     .await.unwrap();
+    //Trade code for token info
     let params = [
         ("grant_type", "authorization_code"),
         ("code", &code),
-        ("redirect_uri", &("http://".to_string() + origin + &"/authorizesuccess".to_string())),
-        /*("client_id", &env::var("SPOTIFY_CLIENT_ID").unwrap()),
-        ("client_secret", &env::var("SPOTIFY_CLIENT_SECRET").unwrap())*/];
+        ("redirect_uri", &("http://".to_string() + origin + &"/authorizesuccess".to_string()))];
     let auth_string = "Basic ".to_string() + &BASE64_STANDARD.encode(env::var("SPOTIFY_CLIENT_ID").unwrap() + &":".to_string() + &env::var("SPOTIFY_CLIENT_SECRET").unwrap());
     let client = reqwest::Client::new();
     let res = client
@@ -97,8 +122,25 @@ async fn trade_code_for_token(origin: &str, uuid: &String, code: &String) -> Str
     let expires_timestamp = chrono::Utc::now() + Duration::seconds(v["expires_in"].as_i64().unwrap());
     let refresh_token = v["refresh_token"].to_string().replace("\"", "");
     println!("Received refresh_token: {}", &refresh_token);
-    crate::modules::database::oauth_info::set_token_info(&uuid, &token, &token_type, &expires_timestamp, &refresh_token);
-    v["access_token"].to_string()
+    //Get username with token
+    let auth_string = "Bearer ".to_string() + &token.clone();
+    let client = reqwest::Client::new();
+    let res = client
+        .get("https://api.spotify.com/v1/me")
+        .header("Authorization", auth_string)
+        .send().await.unwrap().text().await.unwrap();
+    println!("{}", res);
+    if res.eq("Check settings on developer.spotify.com/dashboard, the user may not be registered.") {
+        println!("Error: User needs to be added to development mode on developer.spotify.com or file an extension request to publish your app.");
+        return "".to_string();
+    }
+    let v: serde_json::Value = serde_json::from_str(&res).unwrap();
+    println!("{}", v);
+    let spotifyid = v["id"].to_string().replace("\"", "");
+    let displayname = v["display_name"].to_string().replace("\"", "");
+    //
+    crate::modules::database::oauth_info::set_token_info(&uuid, &spotifyid, &displayname, &token, &token_type, &expires_timestamp, &refresh_token);
+    token
 }
 
 async fn test(ConnectInfo(addr): ConnectInfo<SocketAddr>, request: Request) -> &'static str {
@@ -126,6 +168,145 @@ async fn testapi() -> impl axum::response::IntoResponse {
         .send().await.unwrap().text().await.unwrap();
     println!("{}", res);
     "response"
+}
+
+async fn datapullalbum(jar: CookieJar) -> impl axum::response::IntoResponse {
+    println!("Received request to /datapullalbum");
+    //Authenticate
+    if jar.get("token").is_none() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    let logintoken = jar.get("token").unwrap().value();
+    if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    //
+    // let lti = crate::modules::database::logintoken_info::get_logintokeninfo_from_token(&logintoken.to_string()).unwrap();
+    let json_string = crate::modules::database::album_info::get_info_as_json();
+    axum::response::Response::builder()
+        .status(StatusCode::OK) // 200 OK
+        .header("Content-Type", "application/json")
+        .body(body::Body::from(json_string)) // Set the JSON body
+        .unwrap()
+}
+async fn datapullartist(jar: CookieJar) -> impl axum::response::IntoResponse {
+    println!("Received request to /datapullartist");
+    //Authenticate
+    if jar.get("token").is_none() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    let logintoken = jar.get("token").unwrap().value();
+    if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    //
+    // let lti = crate::modules::database::logintoken_info::get_logintokeninfo_from_token(&logintoken.to_string()).unwrap();
+    let json_string = crate::modules::database::artist_info::get_info_as_json();
+    axum::response::Response::builder()
+        .status(StatusCode::OK) // 200 OK
+        .header("Content-Type", "application/json")
+        .body(body::Body::from(json_string)) // Set the JSON body
+        .unwrap()
+}
+async fn datapulltrack(jar: CookieJar) -> impl axum::response::IntoResponse {
+    println!("Received request to /datapulltrack");
+    //Authenticate
+    if jar.get("token").is_none() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    let logintoken = jar.get("token").unwrap().value();
+    if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    //
+    // let lti = crate::modules::database::logintoken_info::get_logintokeninfo_from_token(&logintoken.to_string()).unwrap();
+    let json_string = crate::modules::database::track_info::get_info_as_json();
+    axum::response::Response::builder()
+        .status(StatusCode::OK) // 200 OK
+        .header("Content-Type", "application/json")
+        .body(body::Body::from(json_string)) // Set the JSON body
+        .unwrap()
+}
+async fn datapulllisten(jar: CookieJar) -> impl axum::response::IntoResponse {
+    println!("Received request to /datapulllisten");
+    //Authenticate
+    if jar.get("token").is_none() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    let logintoken = jar.get("token").unwrap().value();
+    if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    //
+    // let lti = crate::modules::database::logintoken_info::get_logintokeninfo_from_token(&logintoken.to_string()).unwrap();
+    let uuid = crate::modules::database::logintoken_info::get_uuid_from_token(&logintoken.to_string()).unwrap();
+    let spotifyids = crate::modules::database::oauth_info::get_spotifyids_from_uuid(&uuid);
+    let json_string = crate::modules::database::listen_history_info::get_info_as_json(spotifyids);
+    axum::response::Response::builder()
+        .status(StatusCode::OK) // 200 OK
+        .header("Content-Type", "application/json")
+        .body(body::Body::from(json_string)) // Set the JSON body
+        .unwrap()
+}
+async fn datapullspotdisp(jar: CookieJar) -> impl axum::response::IntoResponse {
+    println!("Received request to /datapullspotdisp");
+    //Authenticate
+    if jar.get("token").is_none() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    let logintoken = jar.get("token").unwrap().value();
+    if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    //
+    // let lti = crate::modules::database::logintoken_info::get_logintokeninfo_from_token(&logintoken.to_string()).unwrap();
+    let uuid = crate::modules::database::logintoken_info::get_uuid_from_token(&logintoken.to_string()).unwrap();
+    let json_string = crate::modules::database::oauth_info::get_spotifyid_to_displayname_map_json_string(&uuid);
+    axum::response::Response::builder()
+        .status(StatusCode::OK) // 200 OK
+        .header("Content-Type", "application/json")
+        .body(body::Body::from(json_string)) // Set the JSON body
+        .unwrap()
 }
 
 async fn signup() -> impl axum::response::IntoResponse {
@@ -198,7 +379,7 @@ async fn login(jar: CookieJar) -> impl axum::response::IntoResponse {
 async fn loginrequest(Json(req_payload): Json<Value>) -> Json<Value> /*axum::Json<Value>*/ {
     println!("Received request to /loginrequest");
     let username = req_payload.get("username").unwrap().as_str().unwrap();
-    let profile = crate::modules::database::profile_info::get_account_info(username);
+    let profile = crate::modules::database::profile_info::get_account_info_from_username(username);
     // println!("{:?}", profile);
     if profile.is_err() {
         let json_value: Value = serde_json::from_str(
@@ -235,7 +416,7 @@ async fn loginsubmit(Json(req_payload): Json<Value>) -> Json<Value> {
     //Decrypt Password
     let nonced_password = crate::modules::encryption::decrypt_login(encrypted_password);
     let hashed_password = nonced_password.replace(nonce, "");
-    let profile = crate::modules::database::profile_info::get_account_info(username);
+    let profile = crate::modules::database::profile_info::get_account_info_from_username(username);
     if !crate::modules::encryption::loginnonce::is_nonce_valid(nonce) {
         let json_value: Value = serde_json::from_str(
             r#"{
@@ -354,6 +535,11 @@ pub fn main() {
                 .route("/test", get(test))
                 .route("/testscrape", get(testscrape))
                 .route("/testapi", get(testapi))
+                .route("/datapullalbum", post(datapullalbum))
+                .route("/datapullartist", post(datapullartist))
+                .route("/datapulltrack", post(datapulltrack))
+                .route("/datapulllisten", post(datapulllisten))
+                .route("/datapullspotdisp", post(datapullspotdisp))
                 // Serve static files
                 .nest_service("/static", ServeDir::new(Path::new("assets/static")));
 

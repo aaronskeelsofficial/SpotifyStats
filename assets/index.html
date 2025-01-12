@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Aaron's Spotify Stats</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="" />
+    <link href="https://cdn.jsdelivr.net/npm/modern-normalize@v3.0.1/modern-normalize.min.css" rel="stylesheet">
+    <link rel="icon" href="static/img/logo_16.png">
+    <!-- Used for cookie manipulation -->
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/globaldefaults.css" />
+</head>
+<body>
+    <div id="root">
+        <div id="header">
+            <img id="logoimg" class="navbarlogo" src="/static/img/logo_120.png" onclick="window.location.href='/';" />
+            <div class="navbarlogsign">
+                <a href="/signup" class="navbarsignup">
+                    Signup
+                </a>
+                <a href="/login" class="navbarlogin">
+                    Login
+                </a>
+            </div>
+        </div>
+        <div id="main">
+            <div id="main2" style="width:99%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;">
+                <p class="center" style="font-family:Sposhify;background-color:black;padding:10px;">
+                    You must log in first.
+                </p>
+            </div>
+        </div>
+        <div id="footer" style="flex:1;">
+
+        </div>
+    </div>
+    <script>
+        let vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+        let vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+        //
+        if (true) {
+            let fontFile = new FontFace("Sposhify", "url(/static/font/GothamMedium.ttf)");
+            document.fonts.add(fontFile);
+            fontFile.load();
+        }
+    </script>
+</body>
+</html>
