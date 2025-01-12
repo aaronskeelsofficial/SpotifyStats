@@ -36,6 +36,16 @@
         .selectedaccount {
             border: 1px solid #1ed760;
         }
+        .selectedsort1 {
+            border: #1ed760 1px solid;
+        }
+        .selectedsort-1 {
+            border: red 1px solid;
+        }
+        .sortcard {
+            height: 50px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -50,11 +60,18 @@
             <div id="main2">
                 <div id="mainacct" class="maincenter" style="width:22%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
                     <p class="menuheader">Account</p>
-                    <div id="mainacctinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;padding-top:25px;"></div>
+                    <div id="mainacctinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;padding-top:25px;overflow-y:auto;"></div>
                 </div>
-                <div id="mainfilters" class="maincenter" style="width:22%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
-                    <p class="menuheader">Filters</p>
-                    <div id="mainfiltersinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;"></div>
+                <div id="mainmiddle" style="width:22%;height:100%;">
+                    <div id="mainfilters" class="maincenter" style="width:100%;height:49.5%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
+                        <p class="menuheader">Filters</p>
+                        <div id="mainfiltersinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;"></div>
+                    </div>
+                    <div style="height:1%;"></div>
+                    <div id="mainsort" class="maincenter" style="width:100%;height:49.5%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
+                        <p class="menuheader">Sort</p>
+                        <div id="mainsortinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;"></div>
+                    </div>
                 </div>
                 <div id="mainresults" class="maincenter" style="width:55%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
                     <p class="menuheader">Search</p>
@@ -85,13 +102,21 @@
             generate_albumspotifyid_to_name();
             generate_artistspotifyid_to_name();
             generate_trackhashid_to_name();
+            // Add playcount information
+            generate_playcount_info();
             //
             for (let [spotifyid,displayname] of Object.entries(spotifyid_displayname_info)) {
                 generate_account_card(spotifyid,displayname);
             }
             generate_add_account_card();
-            generate_filter_card("Filter Song Name", "text:Song Name");
-            generate_filter_card("Filter Artist Name", "text:Artist Name");
+            generate_filter_card("Filter Song Name", "trackname", "text:Song Name");
+            generate_filter_card("Filter Artist Name", "artistname", "text:Artist Name");
+            generate_filter_card("Filter Album Name", "albumname", "text:Album Name");
+            generate_sort_card("Chronological", "timestamp", true, 1);
+            generate_sort_card("Play Count", "playcount", false, 1);
+            generate_sort_card("Song Name", "trackname", false, 1);
+            generate_sort_card("Artist Name", "artistname", false, 1);
+            generate_sort_card("Album Name", "albumname", false, 1);
             updateResultsWithFilters();
         });
         // Retrieve database information
@@ -229,6 +254,15 @@
                 }
             }
         }
+        function generate_playcount_info() {
+            let playcountinfomap = {};
+            for (let lho of listen_history_info) {
+                playcountinfomap[lho.trackhashid] = lho.trackhashid in playcountinfomap ? playcountinfomap[lho.trackhashid]+1 : 1;
+            }
+            for (let lho of listen_history_info) {
+                lho.playcount = playcountinfomap[lho.trackhashid];
+            }
+        }
         // Generate Account Cards
         let FILTER_selectedaccounts_spotifyids = [];
         function generate_account_card(spotifyid, displayname) {
@@ -268,16 +302,18 @@
             mainacctinner.append(root);
         }
         // Generate Filter Cards
-        function generate_filter_card(name, options) {
+        function generate_filter_card(name, desc, options) {
             if (true) {
                 let randomid = Math.floor(Math.random() * 1000000000000);
                 let root = document.createElement("div");
                 root.id = "filterroot_" + randomid;
                 root.style.backgroundColor = "black";
                 root.style.marginBottom = "5px";
+                root.dataset.desc = desc;
+                root.dataset.selected = "0";
                 let str = `
                 <div id="firstrow" style="position:relative;">
-                    <input type="checkbox" style="width:25px;height:25px;" onchange="toggle_filter_card_content(${randomid}, this.checked);" /><span style="position:absolute;top:50%;transform:translate(0,-50%);">${name}</span>
+                    <input type="checkbox" style="width:25px;height:25px;clip-path:inset(0px round 6px);" onchange="toggle_filter_card_content(${randomid}, this.checked);updateResultsWithFilters();" /><span style="position:absolute;top:50%;transform:translate(0,-50%);">${name}</span>
                 </div>`;
                 root.innerHTML = str;
                 if (options) {
@@ -298,6 +334,8 @@
                             }
                             let input = document.createElement("input");
                             input.type = "text";
+                            input.addEventListener("blur", (event) => {updateResultsWithFilters()});
+                            input.addEventListener("keydown", (event) => {if (event.key == "Enter") updateResultsWithFilters();});
                             content.append(input);
                         }
                     }
@@ -314,18 +352,51 @@
                         break;
                     }
                 }
-                document.getElementById("filterroot_" + randomid).append(child);
+                let root = document.getElementById("filterroot_" + randomid);
+                root.append(child);
+                root.dataset.selected = "1";
             } else {
                 let root = document.getElementById("filterroot_" + randomid);
+                root.dataset.selected = "0";
                 let child = root.children[1];
                 filterdropdownhideout.append(child);
             }
+        }
+        // Generate Sort Cards
+        function generate_sort_card(displayname, sortid, isdefault, defaultmultiplier) {
+            let root = document.createElement("div");
+            root.id = "SORTID_" + sortid;
+            root.classList.add("card","sortcard");
+            if (isdefault) {
+                root.classList.add("selectedsort" + defaultmultiplier);
+                SORT_sortbyid = sortid;
+                SORT_incordecmultiplier = defaultmultiplier;
+            }
+            root.onclick = function() {
+                if (SORT_sortbyid == sortid) {
+                    root.classList.remove("selectedsort" + SORT_incordecmultiplier);
+                    SORT_incordecmultiplier = -SORT_incordecmultiplier;
+                    root.classList.add("selectedsort" + SORT_incordecmultiplier);
+                } else {
+                    document.getElementById("SORTID_" + SORT_sortbyid).classList.remove("selectedsort" + SORT_incordecmultiplier);
+                    SORT_sortbyid = sortid;
+                    SORT_incordecmultiplier = 1;
+                    root.classList.add("selectedsort" + SORT_incordecmultiplier);
+                }
+                updateResultsWithFilters();
+            }
+            let innerText = document.createElement("p");
+            innerText.classList.add("center");
+            innerText.innerText = displayname;
+            innerText.style.margin = "0px";
+            root.append(innerText);
+            mainsortinner.append(root);
         }
         // Filtering Functions
         function filterUser(spotifyidarray, data) {
             return data.filter(item => spotifyidarray.includes(item.spotifyid));
         }
-        function filterTrack(expression, data) {
+        function filterTrackName(expression, data) {
             if (expression == "")
                 return data;
             // Helper function to handle logical operations
@@ -334,7 +405,7 @@
                     // Base case: Single token is either true or false based on data
                     // const word = tokens[0].replace(/"/g, '').trim(); // Remove quotes
                     const word = tokens[0].replace(/"/g, ''); // Remove quotes
-                    return item => item.name.toLowerCase().includes(word.toLowerCase());
+                    return item => trackhashid_to_name_map[item.trackhashid].toLowerCase().includes(word.toLowerCase());
                 }
 
                 // Check for OR ('|') precedence
@@ -380,13 +451,259 @@
             // Apply evaluation to the artistname of each object in the dataset
             return data.filter(item => evaluateTokens(item));
         }
+        function filterArtistName(expression, data) {
+            if (expression == "")
+                return data;
+            // Helper function to handle logical operations
+            function evaluate(tokens) {
+                if (tokens.length === 1) {
+                    // Base case: Single token is either true or false based on data
+                    // const word = tokens[0].replace(/"/g, '').trim(); // Remove quotes
+                    const word = tokens[0].replace(/"/g, ''); // Remove quotes
+                    return item => {
+                        let artistids = item.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                        let anything_found_flag = false;
+                        for (let artistid of artistids) {
+                            let artistname = artistspotifyid_to_name_map[artistid].toLowerCase();
+                            if (artistname.includes(word.toLowerCase())) {
+                                anything_found_flag = true;
+                                break;
+                            }
+                        }
+                        return anything_found_flag;
+                        // return artistspotifyid_to_name_map[item.trackhashid].toLowerCase().includes(word.toLowerCase());
+                    }
+                }
+
+                // Check for OR ('|') precedence
+                let orTokens = [];
+                let currentAndTokens = [];
+                let insideParenthesis = 0;
+                let startIndex = 0;
+
+                // Split based on OR operator but handle parentheses nesting
+                for (let i = 0; i < tokens.length; i++) {
+                    if (tokens[i] === "(") insideParenthesis++;
+                    if (tokens[i] === ")") insideParenthesis--;
+                    if (insideParenthesis === 0 && tokens[i] === "|") {
+                        orTokens.push(tokens.slice(startIndex, i));
+                        startIndex = i + 1;
+                    }
+                }
+
+                if (orTokens.length === 0) {
+                    orTokens.push(tokens.slice(startIndex)); // If no OR was found, use the whole token list
+                }
+
+                // Recursively evaluate AND expressions within OR groups
+                return item => {
+                    return orTokens.some(orToken => {
+                        // Evaluate AND expressions inside OR tokens
+                        const andConditions = orToken.join(" ").split("&").map(s => s.trim());
+                        return andConditions.every(cond => evaluate([cond])(item));
+                    });
+                };
+            }
+
+            // Tokenize expression (split by spaces, handle operators & parentheses)
+            function tokenize(expr) {
+                const regex = /(\&|\|)|(\(|\))/g;
+                return expr.replace(/\s+/g, ' ').split(regex).filter(Boolean).map(s => s.trim());
+            }
+
+            // Parse and evaluate expression
+            const tokens = tokenize(expression);
+            const evaluateTokens = evaluate(tokens);
+            
+            // Apply evaluation to the artistname of each object in the dataset
+            return data.filter(item => evaluateTokens(item));
+        }
+        function filterAlbumName(expression, data) {
+            if (expression == "")
+                return data;
+            // Helper function to handle logical operations
+            function evaluate(tokens) {
+                if (tokens.length === 1) {
+                    // Base case: Single token is either true or false based on data
+                    // const word = tokens[0].replace(/"/g, '').trim(); // Remove quotes
+                    const word = tokens[0].replace(/"/g, ''); // Remove quotes
+                    return item => {
+                        let albumname = albumspotifyid_to_name_map[item.albumspotifyid];
+                        if (!albumname)
+                            albumname = "";
+                        return albumname.toLowerCase().includes(word.toLowerCase());
+                    }
+                }
+
+                // Check for OR ('|') precedence
+                let orTokens = [];
+                let currentAndTokens = [];
+                let insideParenthesis = 0;
+                let startIndex = 0;
+
+                // Split based on OR operator but handle parentheses nesting
+                for (let i = 0; i < tokens.length; i++) {
+                    if (tokens[i] === "(") insideParenthesis++;
+                    if (tokens[i] === ")") insideParenthesis--;
+                    if (insideParenthesis === 0 && tokens[i] === "|") {
+                        orTokens.push(tokens.slice(startIndex, i));
+                        startIndex = i + 1;
+                    }
+                }
+
+                if (orTokens.length === 0) {
+                    orTokens.push(tokens.slice(startIndex)); // If no OR was found, use the whole token list
+                }
+
+                // Recursively evaluate AND expressions within OR groups
+                return item => {
+                    return orTokens.some(orToken => {
+                        // Evaluate AND expressions inside OR tokens
+                        const andConditions = orToken.join(" ").split("&").map(s => s.trim());
+                        return andConditions.every(cond => evaluate([cond])(item));
+                    });
+                };
+            }
+
+            // Tokenize expression (split by spaces, handle operators & parentheses)
+            function tokenize(expr) {
+                const regex = /(\&|\|)|(\(|\))/g;
+                return expr.replace(/\s+/g, ' ').split(regex).filter(Boolean).map(s => s.trim());
+            }
+
+            // Parse and evaluate expression
+            const tokens = tokenize(expression);
+            const evaluateTokens = evaluate(tokens);
+            
+            // Apply evaluation to the artistname of each object in the dataset
+            return data.filter(item => evaluateTokens(item));
+        }
+        let SORT_sortbyid; //timestamp
+        let SORT_incordecmultiplier; //1
         function updateResultsWithFilters() {
             let attachpointelem = document.getElementById("mainresultsinner");
-            attachpointelem.innerHTML = "";
-            let filtered_data = listen_history_info;
+            attachpointelem.innerHTML = ""; //Reset the results html
+            //Begin filtration process
+            let filtered_data = listen_history_info.map(obj => ({ ...obj }));;
             filtered_data = FILTER_selectedaccounts_spotifyids.length != 0 ? filterUser(FILTER_selectedaccounts_spotifyids, filtered_data) : filtered_data;
-            filtered_data = filterTrack("", filtered_data);
+                //trackname
+            let trackname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
+                    trackname = filterroot.children[1].children[1].value;
+                    break;
+                }
+            }
+            filtered_data = filterTrackName(trackname, filtered_data);
+                //artistname
+            let artistname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
+                    artistname = filterroot.children[1].children[1].value;
+                    break;
+                }
+            }
+            filtered_data = filterArtistName(artistname, filtered_data);
+                //albumname
+            let albumname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
+                    albumname = filterroot.children[1].children[1].value;
+                    break;
+                }
+            }
+            filtered_data = filterAlbumName(albumname, filtered_data);
+                //
+            //Sort data
+            if (SORT_sortbyid == "timestamp") {
+                filtered_data.sort((a,b) => a.timestamp > b.timestamp ? -1*SORT_incordecmultiplier : (a.timestamp < b.timestamp ? 1*SORT_incordecmultiplier : 0));
+                for (let lho of filtered_data) {
+                    let date = new Date(lho.timestamp);
+                    let hours = date.getHours();
+                    const minutes = date.getMinutes();
+                    const period = hours >= 12 ? 'PM' : 'AM';
+                    hours = hours % 12;
+                    hours = hours ? hours : 12; // Handle midnight (0 should become 12)
+                    // Format minutes to always be two digits
+                    const formattedMinutes = minutes.toString().padStart(2, '0');
+                    // Format the date to "hour:minute AM/PM month-day-year"
+                    const formattedDate = `${hours}:${formattedMinutes} ${period} ${date.getMonth() + 1}-${date.getDate()}-${date.getFullYear()}`;
+                    lho.specialvalue = formattedDate;
+                }
+            } else if (SORT_sortbyid == "playcount") {
+                filtered_data.sort((a,b) => a.playcount > b.playcount ? -1*SORT_incordecmultiplier : (a.playcount < b.playcount ? 1*SORT_incordecmultiplier : 0));
+                for (let lho of filtered_data) {
+                    lho.specialvalue = lho.playcount + " Plays";
+                }
+            } else if (SORT_sortbyid == "trackname") {
+                filtered_data.sort((a,b) => {
+                    let aval = trackhashid_to_name_map[a.trackhashid].toLowerCase();
+                    let bval = trackhashid_to_name_map[b.trackhashid].toLowerCase();
+                    return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
+                });
+                for (let lho of filtered_data) {
+                    lho.specialvalue = "";
+                }
+            } else if (SORT_sortbyid == "artistname") {
+                //This one is very special. Because there can be multiple artists per song, and people would want to know both independently
+                // in this sorted list, we need to duplicate/split the data per artist. THEN we will sort.
+                //First, duplicate/split
+                console.log(filtered_data.length);
+                for (let i = 0;i < filtered_data.length;i++) {
+                    let lho = filtered_data[i];
+                    if (lho.artists.length == 1)
+                        continue;
+                    let artistsarray = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
+                    // let artists = lho.artists;
+                    lho.artists = `["${artistsarray[0]}"]`;
+                    lho.specialvalue = "";
+                    for (let i = 0;i < artistsarray.length;i++) {
+                        if (i == 0)
+                            continue;
+                        let artist = artistsarray[i];
+                        let clone = Object.assign({}, lho);
+                        clone.artists = `["${artist}"]`;
+                        filtered_data.push(clone);
+                    }
+                }
+                console.log(filtered_data.length);
+                console.log(filtered_data);
+                //Second, now we sort
+                filtered_data.sort((a,b) => {
+                    let aartist = a.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
+                    let bartist = b.artists.replace("[\"","").replace("\"]","").replace("\",\"",",");
+                    let aval = artistspotifyid_to_name_map[aartist].toLowerCase();
+                    let bval = artistspotifyid_to_name_map[bartist].toLowerCase();
+                    return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
+                });
+            } else if (SORT_sortbyid == "albumname") {
+                filtered_data.sort((a,b) => {
+                    let aname = albumspotifyid_to_name_map[a.albumspotifyid];
+                    let bname = albumspotifyid_to_name_map[b.albumspotifyid];
+                    if (!aname && !bname) {
+                        return 0;
+                    } else if (!aname) {
+                        return 1;
+                    } else if (!bname) {
+                        return -1;
+                    }
+                    let aval = aname.toLowerCase();
+                    let bval = albumspotifyid_to_name_map[b.albumspotifyid].toLowerCase();
+                    return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
+                });
+                for (let lho of filtered_data) {
+                    lho.specialvalue = "";
+                }
+            }
+            //Create html results from filtered & sorted data
+            let handledsongsset = [];
+            let counter = 0;
             for (let lho of filtered_data) {
+                if (handledsongsset.includes(lho.trackhashid + lho.artists)) { //If we have already handled this track (unique via name + artists), we want to skip it
+                    continue;
+                }
+
+                counter++;
                 let artistids = lho.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
                 let artistnames = [];
                 for (let artistid of artistids) {
@@ -395,15 +712,30 @@
                 //
                 let trackname = trackhashid_to_name_map[lho.trackhashid];
                 let albumname = albumspotifyid_to_name_map[lho.albumspotifyid];
+                let playcount = lho.playcount;
                 //
-                let root = document.createElement("div");
-                let str = trackname + ", ";
+                let root = document.createElement("p");
+                root.style.marginBottom = "0px";
+                let str = counter + ". " + trackname + "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;";
                 for (let artistname of artistnames)
                     str += artistname + " & ";
-                str += ", " + albumname;
-                root.innerText = str;
+                str = str.substring(0, str.length-3);
+                if (albumname)
+                    str += "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;" + albumname;
+                root.innerHTML = str;
                 attachpointelem.append(root);
+                if (lho.specialvalue != "") { //If the sorting leads to a special value being attached on the second line of each song
+                    let specialvalue = document.createElement("span");
+                    specialvalue.innerHTML = "&nbsp;&nbsp;&nbsp;&nbsp;" + lho.specialvalue;
+                    attachpointelem.append(specialvalue);
+                }
+
+                //We use this as the identifier instead of just track name because when we sort by artist, we duplicate tracks to show per-artist
+                handledsongsset.push(lho.trackhashid + lho.artists);
             }
+            let fillerdiv = document.createElement("div");
+            fillerdiv.style.height = "20px";
+            attachpointelem.append(fillerdiv);
         }
     </script>
 </body>

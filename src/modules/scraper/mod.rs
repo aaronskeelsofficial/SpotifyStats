@@ -66,27 +66,28 @@ fn actual_scrape_task_for_all() {
     crate::modules::database::oauth_info::revalidate_invalid_info();
     // Get all authentication/refresh token pairs
     let oauth_conn_guard = crate::modules::database::oauth_info::OAUTHINFO_CONN.lock().unwrap();
-    let info: Vec<(String, String)> = {
-        let stmt = &mut oauth_conn_guard.prepare("SELECT spotifyid,token FROM oauth_info").unwrap();
+    let info: Vec<(String,String,String)> = {
+        let stmt = &mut oauth_conn_guard.prepare("SELECT spotifyid,displayname,token FROM oauth_info").unwrap();
         stmt.query_map([], |row| {
             let spotifyid: String = row.get(0)?;
-            let token: String = row.get(1)?;
-            Ok((spotifyid, token))
+            let displayname: String = row.get(1)?;
+            let token: String = row.get(2)?;
+            Ok((spotifyid,displayname,token))
         })
         .unwrap()
         .filter_map(|result| result.ok())  // Filter out any errors
-        .map(|(spotifyid, token)| {
+        .map(|(spotifyid,displayname,token)| {
             // Clone each String value
-            (spotifyid.clone(), token.clone())
+            (spotifyid.clone(),displayname.clone(),token.clone())
         })
         .collect()  // Collect into a Vec
     };
     drop(oauth_conn_guard);
     //
     let mut handled_spotifyid: HashSet<String> = HashSet::new();
-    for (spotifyid,token) in info {
+    for (spotifyid,displayname,token) in info {
         if !handled_spotifyid.contains(&spotifyid) {
-            scrape(&spotifyid, &token);
+            scrape(&spotifyid,&displayname,&token);
             handled_spotifyid.insert(spotifyid.clone());
         }
     }
@@ -96,8 +97,8 @@ fn actual_scrape_task_for_all() {
     // *last_scrape_time_guard = Utc::now();
 }
 
-pub fn scrape(spotifyid: &String, token: &String) {
-    println!("Handling Spotify scrape for: {}", &spotifyid);
+pub fn scrape(spotifyid: &String, displayname: &String, token: &String) {
+    println!("Handling Spotify scrape for: {} ({})", &spotifyid, displayname);
         //  Pull data from spotify
         let form_data = [
             ("limit", 50),
@@ -138,6 +139,7 @@ pub fn scrape(spotifyid: &String, token: &String) {
 }
 
 fn add_data_to_database(spotifyid: &String, rpr: &RecentlyPlayedResponse) {
+    println!("Adding data to database");
     for pho in &rpr.items {
         //Add artists
         for artist in &pho.track.artists {
