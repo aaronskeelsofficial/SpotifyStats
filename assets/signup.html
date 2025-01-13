@@ -65,6 +65,14 @@
         }
         //
         var bcrypt = dcodeIO.bcrypt;
+        usr.addEventListener("keydown", (event) => {
+            if (event.key === "Enter")
+                submit();
+        });
+        pwd.addEventListener("keydown", (event) => {
+            if (event.key === "Enter")
+                submit();
+        });
         function submit() {
             let salt = generateSalt();
             let hashedPassword = hashWithSalt(pwd.value, salt);
@@ -82,7 +90,7 @@
             })
                 .then(response => response.json()) // Parse the JSON response
                 .then(data2 => {
-                    console.log('Success:', data2);
+                    // console.log('Success:', data2);
                     if (data2.status == "usernameexists") {
                         alert("Username Taken");
                     } else if (data2.status == "accountcreated") {

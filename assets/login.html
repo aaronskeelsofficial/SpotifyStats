@@ -65,6 +65,14 @@
         }
         //
         var bcrypt = dcodeIO.bcrypt;
+        usr.addEventListener("keydown", (event) => {
+            if (event.key === "Enter")
+                submit();
+        });
+        pwd.addEventListener("keydown", (event) => {
+            if (event.key === "Enter")
+                submit();
+        });
         function submit() {
             //Validate data has been entered
             if (!usr.value) {
@@ -89,7 +97,7 @@
             })
                 .then(response => response.json()) // Parse the JSON response
                 .then(result => {
-                    console.log('Success:', result);
+                    // console.log('Success:', result);
                     valid_submit(result);
                 })
                 .catch(error => console.error('Error:', error));
@@ -108,10 +116,10 @@
                 var formatAdheredPublicKey = decodedPublicKey;
                 encrypt.setPublicKey(formatAdheredPublicKey);
                 var encryptedPassword = encrypt.encrypt(noncedPassword);
-                console.log("password: " + password);
-                console.log("hashedPassword: " + hashedPassword);
-                console.log("noncedPassword: " + noncedPassword);
-                console.log("encryptedPassword: " + encryptedPassword);
+                // console.log("password: " + password);
+                // console.log("hashedPassword: " + hashedPassword);
+                // console.log("noncedPassword: " + noncedPassword);
+                // console.log("encryptedPassword: " + encryptedPassword);
                 // - Client POST request to "/loginsubmit" with username, encrypted password, nonce
                 let data2 = {
                     username: data.username,
