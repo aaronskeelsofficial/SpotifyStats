@@ -351,6 +351,7 @@
                             input.type = "text";
                             input.addEventListener("blur", (event) => {updateResultsWithFilters()});
                             input.addEventListener("keydown", (event) => {if (event.key == "Enter") updateResultsWithFilters();});
+                            input.addEventListener("input", (event) => {updateResultsWithFilters();});
                             content.append(input);
                         }
                     }
@@ -409,56 +410,6 @@
         }
         // Filtering Functions
         //Fundamentally, structure of interpreter will be an array of array of expressions
-        // function EXPRINTERPRETER_getOrGroups(expr, group) {
-        //     console.log("OR: " + expr);
-        //     expr = expr.trim();
-        //     while (expr.includes("|")) {
-        //         let orindex = expr.indexOf("|");
-        //         let leftexpr = expr.substring(0,orindex);
-        //         let lchildgroup = [];
-        //         EXPRINTERPRETER_getParenthesisGroups(leftexpr,lchildgroup);
-        //         if (lchildgroup.length != 0) group.push(lchildgroup);
-        //         let rightexpr = expr.substring(orindex+1);
-        //         let rchildgroup = [];
-        //         EXPRINTERPRETER_getParenthesisGroups(rightexpr,rchildgroup);
-        //         if (rchildgroup.length != 0) group.push(rchildgroup);
-        //         console.log("OR Left (" + leftexpr + ")    :: Right (" + rightexpr + ")");
-        //         expr = "";
-        //     }
-        //     if (expr != "") {
-        //         group.push(expr);
-        //     }
-        // }
-        // function EXPRINTERPRETER_getAndGroups(expr, group) {
-        //     console.log("AND: " + expr);
-        //     expr = expr.trim();
-        //     while (expr.includes("&")) {
-        //         let andindex = expr.indexOf("&");
-        //         let orindex = expr.indexOf("|");
-        //         let leftexpr = expr.substring(0,andindex);
-        //         EXPRINTERPRETER_getParenthesisGroups(leftexpr,group);
-        //         let rightexpr = expr.substring(andindex+1);
-        //         EXPRINTERPRETER_getParenthesisGroups(rightexpr,group);
-        //         expr = "";
-        //     }
-        //     if (expr != "")
-        //         EXPRINTERPRETER_getOrGroups(expr,group);
-        // }
-        // function EXPRINTERPRETER_getParenthesisGroups(expr, group) {
-        //     console.log("(): " + expr);
-        //     expr = expr.trim();
-        //     while (expr.startsWith("(")) {
-        //         let closingParenthesisIndex = expr.indexOf(")");
-        //         if (closingParenthesisIndex == -1)
-        //             break;
-        //         let newgroup = [];
-        //         group.push(newgroup);
-        //         EXPRINTERPRETER_getParenthesisGroups(expr.substring(1,closingParenthesisIndex), newgroup);
-        //         expr = expr.substring(closingParenthesisIndex+1);
-        //     }
-        //     if (expr != "")
-        //         EXPRINTERPRETER_getAndGroups(expr, group);
-        // }
         function EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group) {
             let leftexpr = expr.substring(index_openParen+1, index_closedParen);
             let lnewgroup = [];
@@ -503,63 +454,8 @@
             else
                 if(expr != "") group.push(expr);
         }
-        function filterUser(spotifyidarray, data) {
+        function filterUsers(spotifyidarray, data) {
             return data.filter(item => spotifyidarray.includes(item.spotifyid));
-        }
-        function filterTrackName(expression, data) {
-            if (expression == "")
-                return data;
-            // Helper function to handle logical operations
-            function evaluate(tokens) {
-                if (tokens.length === 1) {
-                    // Base case: Single token is either true or false based on data
-                    // const word = tokens[0].replace(/"/g, '').trim(); // Remove quotes
-                    const word = tokens[0].replace(/"/g, ''); // Remove quotes
-                    return item => trackhashid_to_name_map[item.trackhashid].toLowerCase().includes(word.toLowerCase());
-                }
-
-                // Check for OR ('|') precedence
-                let orTokens = [];
-                let currentAndTokens = [];
-                let insideParenthesis = 0;
-                let startIndex = 0;
-
-                // Split based on OR operator but handle parentheses nesting
-                for (let i = 0; i < tokens.length; i++) {
-                    if (tokens[i] === "(") insideParenthesis++;
-                    if (tokens[i] === ")") insideParenthesis--;
-                    if (insideParenthesis === 0 && tokens[i] === "|") {
-                        orTokens.push(tokens.slice(startIndex, i));
-                        startIndex = i + 1;
-                    }
-                }
-
-                if (orTokens.length === 0) {
-                    orTokens.push(tokens.slice(startIndex)); // If no OR was found, use the whole token list
-                }
-
-                // Recursively evaluate AND expressions within OR groups
-                return item => {
-                    return orTokens.some(orToken => {
-                        // Evaluate AND expressions inside OR tokens
-                        const andConditions = orToken.join(" ").split("&").map(s => s.trim());
-                        return andConditions.every(cond => evaluate([cond])(item));
-                    });
-                };
-            }
-
-            // Tokenize expression (split by spaces, handle operators & parentheses)
-            function tokenize(expr) {
-                const regex = /(\&|\|)|(\(|\))/g;
-                return expr.replace(/\s+/g, ' ').split(regex).filter(Boolean).map(s => s.trim());
-            }
-
-            // Parse and evaluate expression
-            const tokens = tokenize(expression);
-            const evaluateTokens = evaluate(tokens);
-            
-            // Apply evaluation to the artistname of each object in the dataset
-            return data.filter(item => evaluateTokens(item));
         }
         function filterTrackNameMyself(expression, data) {
             let rootgroup = [];
@@ -639,138 +535,14 @@
             }
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
         }
-        function filterArtistName(expression, data) {
-            if (expression == "")
-                return data;
-            
-            // Helper function to handle logical operations
-            function evaluate(tokens) {
-                if (tokens.length === 1) {
-                    const word = tokens[0].replace(/"/g, ''); // Remove quotes
-                    return item => {
-                        let artistids = item.artists.replace("[\"","").replace("\"]","").replace("\",\"",",").split(",");
-                        let anything_found_flag = false;
-                        for (let artistid of artistids) {
-                            let artistname = artistspotifyid_to_name_map[artistid].toLowerCase();
-                            if (artistname.includes(word.toLowerCase())) {
-                                anything_found_flag = true;
-                                break;
-                            }
-                        }
-                        return anything_found_flag;
-                    }
-                }
-
-                // Check for OR ('|') precedence
-                let orTokens = [];
-                let currentAndTokens = [];
-                let insideParenthesis = 0;
-                let startIndex = 0;
-
-                // Split based on OR operator but handle parentheses nesting
-                for (let i = 0; i < tokens.length; i++) {
-                    if (tokens[i] === "(") insideParenthesis++;
-                    if (tokens[i] === ")") insideParenthesis--;
-                    if (insideParenthesis === 0 && tokens[i] === "|") {
-                        orTokens.push(tokens.slice(startIndex, i));
-                        startIndex = i + 1;
-                    }
-                }
-
-                if (orTokens.length === 0) {
-                    orTokens.push(tokens.slice(startIndex)); // If no OR was found, use the whole token list
-                }
-
-                // Recursively evaluate AND expressions within OR groups
-                return item => {
-                    return orTokens.some(orToken => {
-                        const andConditions = orToken.join(" ").split("&").map(s => s.trim());
-                        return andConditions.every(cond => evaluate([cond])(item));
-                    });
-                };
-            }
-
-            // Tokenize expression (split by spaces, handle operators & parentheses)
-            function tokenize(expr) {
-                const regex = /(\&|\|)|(\(|\))/g;
-                return expr.replace(/\s+/g, ' ').split(regex).filter(Boolean).map(s => s.trim());
-            }
-
-            // Parse and evaluate expression
-            const tokens = tokenize(expression);
-            const evaluateTokens = evaluate(tokens);
-            
-            // Apply evaluation to the artistname of each object in the dataset
-            return data.filter(item => evaluateTokens(item));
-        }
-        function filterAlbumName(expression, data) {
-            if (expression == "")
-                return data;
-            // Helper function to handle logical operations
-            function evaluate(tokens) {
-                if (tokens.length === 1) {
-                    // Base case: Single token is either true or false based on data
-                    // const word = tokens[0].replace(/"/g, '').trim(); // Remove quotes
-                    const word = tokens[0].replace(/"/g, ''); // Remove quotes
-                    return item => {
-                        let albumname = albumspotifyid_to_name_map[item.albumspotifyid];
-                        if (!albumname)
-                            albumname = "";
-                        return albumname.toLowerCase().includes(word.toLowerCase());
-                    }
-                }
-
-                // Check for OR ('|') precedence
-                let orTokens = [];
-                let currentAndTokens = [];
-                let insideParenthesis = 0;
-                let startIndex = 0;
-
-                // Split based on OR operator but handle parentheses nesting
-                for (let i = 0; i < tokens.length; i++) {
-                    if (tokens[i] === "(") insideParenthesis++;
-                    if (tokens[i] === ")") insideParenthesis--;
-                    if (insideParenthesis === 0 && tokens[i] === "|") {
-                        orTokens.push(tokens.slice(startIndex, i));
-                        startIndex = i + 1;
-                    }
-                }
-
-                if (orTokens.length === 0) {
-                    orTokens.push(tokens.slice(startIndex)); // If no OR was found, use the whole token list
-                }
-
-                // Recursively evaluate AND expressions within OR groups
-                return item => {
-                    return orTokens.some(orToken => {
-                        // Evaluate AND expressions inside OR tokens
-                        const andConditions = orToken.join(" ").split("&").map(s => s.trim());
-                        return andConditions.every(cond => evaluate([cond])(item));
-                    });
-                };
-            }
-
-            // Tokenize expression (split by spaces, handle operators & parentheses)
-            function tokenize(expr) {
-                const regex = /(\&|\|)|(\(|\))/g;
-                return expr.replace(/\s+/g, ' ').split(regex).filter(Boolean).map(s => s.trim());
-            }
-
-            // Parse and evaluate expression
-            const tokens = tokenize(expression);
-            const evaluateTokens = evaluate(tokens);
-            
-            // Apply evaluation to the artistname of each object in the dataset
-            return data.filter(item => evaluateTokens(item));
-        }
-        let SORT_sortbyid; //timestamp
-        let SORT_incordecmultiplier; //1
+        let SORT_sortbyid; //default: timestamp
+        let SORT_incordecmultiplier; //default: 1
         function updateResultsWithFilters() {
             let attachpointelem = document.getElementById("mainresultsinner");
             attachpointelem.innerHTML = ""; //Reset the results html
             //Stage 1 Filtration
             let filtered_data = listen_history_info.map(obj => ({ ...obj }));;
-            filtered_data = FILTER_selectedaccounts_spotifyids.length != 0 ? filterUser(FILTER_selectedaccounts_spotifyids, filtered_data) : filtered_data;
+            filtered_data = FILTER_selectedaccounts_spotifyids.length != 0 ? filterUsers(FILTER_selectedaccounts_spotifyids, filtered_data) : filtered_data;
             //Filter functions to be used in sorting
             function removeDuplicateTrackHashId(data) {
                 let handledset = [];
