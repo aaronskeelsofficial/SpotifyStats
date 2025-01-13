@@ -113,6 +113,7 @@
             generate_filter_card("Filter Artist Name", "artistname", "text:Artist Name");
             generate_filter_card("Filter Album Name", "albumname", "text:Album Name");
             generate_filter_card("Filter Listen Date", "listendate", "date:Start Date;date:End Date");
+            generate_filter_card("Filter Listen Time", "listentime", "time:Start Time;time:End Time");
             generate_sort_card("Chronological", "timestamp", true, 1);
             generate_sort_card("Song Play Count", "trackplaycount", false, 1);
             generate_sort_card("Artist Play Count", "artistplaycount", false, 1);
@@ -364,8 +365,16 @@
                             }
                             let input = document.createElement("input");
                             input.type = "date";
-                            input.addEventListener("blur", (event) => {updateResultsWithFilters()});
-                            input.addEventListener("keydown", (event) => {if (event.key == "Enter") updateResultsWithFilters();});
+                            input.addEventListener("input", (event) => {updateResultsWithFilters();});
+                            optionroot.append(input);
+                        } else if (key == "time") {
+                            if (value != "") {
+                                let desc = document.createElement("span");
+                                desc.innerText = value + " ";
+                                optionroot.append(desc);
+                            }
+                            let input = document.createElement("input");
+                            input.type = "time";
                             input.addEventListener("input", (event) => {updateResultsWithFilters();});
                             optionroot.append(input);
                         }
@@ -551,11 +560,22 @@
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
         }
         function filterListenDateMyself(startlistendate, endlistendate, data) {
-            console.log(startlistendate + " :: " + endlistendate);
+            if (startlistendate == new Date('0001-01-01') && endlistendate == new Date('9999-12-31'))
+                return data;
             return data.filter(item => {
                 let itemdate = new Date(item.timestamp);
-                console.log("     " + itemdate);
                 return itemdate.getTime() >= startlistendate.getTime() && itemdate.getTime() <= endlistendate.getTime();
+            });
+        }
+        function filterListenTimeMyself(startlistentime, endlistentime, data) {
+            if (startlistentime == "00:00:00" && endlistentime == "23:59:59")
+                return data;
+            console.log(startlistentime + " :: " + endlistentime);
+            return data.filter(item => {
+                let itemdate = new Date(item.timestamp);
+                let itemtime = itemdate.toTimeString().split(" ")[0];
+                console.log("     " + itemtime + " :: " + itemdate);
+                return itemtime >= startlistentime && itemtime <= endlistentime;
             });
         }
         let SORT_sortbyid; //default: timestamp
@@ -831,12 +851,23 @@
                     break;
                 }
             }
-            // startlistendate = startlistendate != "" ? convertDateInputToRFC3339(startlistendate + "T00:00:00Z") : new Date('0001-01-01').toISOString();
-            // endlistendate = endlistendate != "" ? convertDateInputToRFC3339(endlistendate + "T23:59:59Z") : new Date('9999-12-31').toISOString();
-            startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01');
-            endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31');
+            startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01'); //We MUST add the time or JS assumes UTC
+            endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31'); //We MUST add the time or JS assumes UTC
             filtered_data = filterListenDateMyself(startlistendate, endlistendate, filtered_data);
-            // filtered_data = albumname != "" ? filterAlbumNameMyself(albumname, filtered_data) : filtered_data;
+                //listentime
+            let startlistentime = "";
+            let endlistentime = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "listentime" && filterroot.dataset.selected == "1") {
+                    startlistentime = filterroot.children[1].children[0].children[1].value;
+                    endlistentime = filterroot.children[1].children[1].children[1].value;
+                    break;
+                }
+            }
+            startlistentime = startlistentime != "" ? startlistentime : "00:00:00";
+            endlistentime = endlistentime != "" ? endlistentime : "23:59:59";
+            filtered_data = filterListenTimeMyself(startlistentime, endlistentime, filtered_data);
+            //filterListenTimeMyself
             //Create html results from filtered & sorted data
             let counter = 0;
             function handle_placeholders(string, lho, counter) {
