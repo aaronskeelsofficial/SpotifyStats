@@ -409,55 +409,99 @@
         }
         // Filtering Functions
         //Fundamentally, structure of interpreter will be an array of array of expressions
-        function EXPRINTERPRETER_getOrGroups(expr, group) {
-            console.log("OR: " + expr);
-            expr = expr.trim();
-            while (expr.includes("|")) {
-                let orindex = expr.indexOf("|");
-                let leftexpr = expr.substring(0,orindex);
-                let lchildgroup = [];
-                EXPRINTERPRETER_getParenthesisGroups(leftexpr,lchildgroup);
-                if (lchildgroup.length != 0) group.push(lchildgroup);
-                let rightexpr = expr.substring(orindex+1);
-                let rchildgroup = [];
-                EXPRINTERPRETER_getParenthesisGroups(rightexpr,rchildgroup);
-                if (rchildgroup.length != 0) group.push(rchildgroup);
-                console.log("OR Left (" + leftexpr + ")    :: Right (" + rightexpr + ")");
-                expr = "";
-            }
-            if (expr != "") {
-                group.push(expr);
-            }
+        // function EXPRINTERPRETER_getOrGroups(expr, group) {
+        //     console.log("OR: " + expr);
+        //     expr = expr.trim();
+        //     while (expr.includes("|")) {
+        //         let orindex = expr.indexOf("|");
+        //         let leftexpr = expr.substring(0,orindex);
+        //         let lchildgroup = [];
+        //         EXPRINTERPRETER_getParenthesisGroups(leftexpr,lchildgroup);
+        //         if (lchildgroup.length != 0) group.push(lchildgroup);
+        //         let rightexpr = expr.substring(orindex+1);
+        //         let rchildgroup = [];
+        //         EXPRINTERPRETER_getParenthesisGroups(rightexpr,rchildgroup);
+        //         if (rchildgroup.length != 0) group.push(rchildgroup);
+        //         console.log("OR Left (" + leftexpr + ")    :: Right (" + rightexpr + ")");
+        //         expr = "";
+        //     }
+        //     if (expr != "") {
+        //         group.push(expr);
+        //     }
+        // }
+        // function EXPRINTERPRETER_getAndGroups(expr, group) {
+        //     console.log("AND: " + expr);
+        //     expr = expr.trim();
+        //     while (expr.includes("&")) {
+        //         let andindex = expr.indexOf("&");
+        //         let orindex = expr.indexOf("|");
+        //         let leftexpr = expr.substring(0,andindex);
+        //         EXPRINTERPRETER_getParenthesisGroups(leftexpr,group);
+        //         let rightexpr = expr.substring(andindex+1);
+        //         EXPRINTERPRETER_getParenthesisGroups(rightexpr,group);
+        //         expr = "";
+        //     }
+        //     if (expr != "")
+        //         EXPRINTERPRETER_getOrGroups(expr,group);
+        // }
+        // function EXPRINTERPRETER_getParenthesisGroups(expr, group) {
+        //     console.log("(): " + expr);
+        //     expr = expr.trim();
+        //     while (expr.startsWith("(")) {
+        //         let closingParenthesisIndex = expr.indexOf(")");
+        //         if (closingParenthesisIndex == -1)
+        //             break;
+        //         let newgroup = [];
+        //         group.push(newgroup);
+        //         EXPRINTERPRETER_getParenthesisGroups(expr.substring(1,closingParenthesisIndex), newgroup);
+        //         expr = expr.substring(closingParenthesisIndex+1);
+        //     }
+        //     if (expr != "")
+        //         EXPRINTERPRETER_getAndGroups(expr, group);
+        // }
+        function EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group) {
+            let leftexpr = expr.substring(index_openParen+1, index_closedParen);
+            let lnewgroup = [];
+            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
+            if (lnewgroup.length != 0) group.push(lnewgroup);
+            let rightexpr = expr.substring(index_closedParen+1);
+            let rnewgroup = [];
+            EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
+            if (rnewgroup.length != 0) group.push(rnewgroup);
         }
-        function EXPRINTERPRETER_getAndGroups(expr, group) {
-            console.log("AND: " + expr);
-            expr = expr.trim();
-            while (expr.includes("&")) {
-                let andindex = expr.indexOf("&");
-                let orindex = expr.indexOf("|");
-                let leftexpr = expr.substring(0,andindex);
-                EXPRINTERPRETER_getParenthesisGroups(leftexpr,group);
-                let rightexpr = expr.substring(andindex+1);
-                EXPRINTERPRETER_getParenthesisGroups(rightexpr,group);
-                expr = "";
-            }
-            if (expr != "")
-                EXPRINTERPRETER_getOrGroups(expr,group);
+        function EXPRINTERPRETER_handleAnd(expr, index_and, group) {
+            let leftexpr = expr.substring(0, index_and);
+            EXPRINTERPRETER_handleExpression(leftexpr, group);
+            let rightexpr = expr.substring(index_and+1);
+            EXPRINTERPRETER_handleExpression(rightexpr, group);
         }
-        function EXPRINTERPRETER_getParenthesisGroups(expr, group) {
-            console.log("(): " + expr);
-            expr = expr.trim();
-            while (expr.startsWith("(")) {
-                let closingParenthesisIndex = expr.indexOf(")");
-                if (closingParenthesisIndex == -1)
-                    break;
-                let newgroup = [];
-                group.push(newgroup);
-                EXPRINTERPRETER_getParenthesisGroups(expr.substring(1,closingParenthesisIndex), newgroup);
-                expr = expr.substring(closingParenthesisIndex+1);
-            }
-            if (expr != "")
-                EXPRINTERPRETER_getAndGroups(expr, group);
+        function EXPRINTERPRETER_handleOr(expr, index_or, group) {
+            let leftexpr = expr.substring(0, index_or);
+            let lnewgroup = [];
+            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
+            if (lnewgroup.length != 0) group.push(lnewgroup);
+            let rightexpr = expr.substring(index_or+1);
+            let rnewgroup = [];
+            EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
+            if (rnewgroup.length != 0) group.push(rnewgroup);
+        }
+        function EXPRINTERPRETER_handleExpression(expr, group) {
+            let index_openParen = expr.indexOf("(");
+            index_openParen = index_openParen == -1 ? 9999999999 : index_openParen;
+            let index_closedParen = expr.indexOf(")");
+            index_closedParen = index_closedParen == -1 ? 9999999999 : index_closedParen;
+            let index_and = expr.indexOf("&");
+            index_and = index_and == -1 ? 9999999999 : index_and;
+            let index_or = expr.indexOf("|");
+            index_or = index_or == -1 ? 9999999999 : index_or;
+            if (index_openParen != 9999999999 && index_openParen < index_and && index_openParen < index_or && (index_openParen < index_closedParen && index_closedParen != 9999999999))
+                EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group);
+            else if (index_and != 9999999999 && index_and < index_openParen && index_and < index_or)
+                EXPRINTERPRETER_handleAnd(expr, index_and, group);
+            else if (index_or != 9999999999 && index_or < index_openParen && index_or < index_and)
+                EXPRINTERPRETER_handleOr(expr, index_or, group);
+            else
+                if(expr != "") group.push(expr);
         }
         function filterUser(spotifyidarray, data) {
             return data.filter(item => spotifyidarray.includes(item.spotifyid));
@@ -517,11 +561,34 @@
             // Apply evaluation to the artistname of each object in the dataset
             return data.filter(item => evaluateTokens(item));
         }
+        function filterTrackNameMyself(expression, data) {
+            let rootgroup = [];
+            EXPRINTERPRETER_handleExpression(expression, rootgroup);
+            // console.log("rootgroup:");
+            // console.log(rootgroup);
+            //Recurse through children, discovering if they are true or false
+            function evaluateIfGroupIsTrue(groupOrString, item) {
+                if (groupOrString.length == 0)
+                    return true;
+                let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
+                if (isArrayOfConditions) {
+                    return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
+                }
+                let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
+                if (isFinalStringArray) {
+                    return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
+                }
+                //Now we know it's a single string to actually check
+                let word = groupOrString.toLowerCase();
+                return trackhashid_to_name_map[item.trackhashid].toLowerCase().includes(word);
+            }
+            return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
+        }
         function filterArtistNameMyself(expression, data) {
             let rootgroup = [];
-            EXPRINTERPRETER_getParenthesisGroups(expression, rootgroup);
-            console.log("rootgroup:");
-            console.log(rootgroup);
+            EXPRINTERPRETER_handleExpression(expression, rootgroup);
+            // console.log("rootgroup:");
+            // console.log(rootgroup);
             //Recurse through children, discovering if they are true or false
             function evaluateIfGroupIsTrue(groupOrString, item) {
                 if (groupOrString.length == 0)
@@ -546,6 +613,29 @@
                     }
                 }
                 return anything_found_flag;
+            }
+            return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
+        }
+        function filterAlbumNameMyself(expression, data) {
+            let rootgroup = [];
+            EXPRINTERPRETER_handleExpression(expression, rootgroup);
+            // console.log("rootgroup:");
+            // console.log(rootgroup);
+            //Recurse through children, discovering if they are true or false
+            function evaluateIfGroupIsTrue(groupOrString, item) {
+                if (groupOrString.length == 0)
+                    return true;
+                let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
+                if (isArrayOfConditions) {
+                    return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
+                }
+                let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
+                if (isFinalStringArray) {
+                    return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
+                }
+                //Now we know it's a single string to actually check
+                let word = groupOrString.toLowerCase();
+                return albumspotifyid_to_name_map[item.albumspotifyid].toLowerCase().includes(word);
             }
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
         }
@@ -678,36 +768,9 @@
         function updateResultsWithFilters() {
             let attachpointelem = document.getElementById("mainresultsinner");
             attachpointelem.innerHTML = ""; //Reset the results html
-            //Begin filtration process
+            //Stage 1 Filtration
             let filtered_data = listen_history_info.map(obj => ({ ...obj }));;
             filtered_data = FILTER_selectedaccounts_spotifyids.length != 0 ? filterUser(FILTER_selectedaccounts_spotifyids, filtered_data) : filtered_data;
-                //trackname
-            let trackname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
-                    trackname = filterroot.children[1].children[1].value;
-                    break;
-                }
-            }
-            filtered_data = filterTrackName(trackname, filtered_data);
-                //artistname
-            let artistname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
-                    artistname = filterroot.children[1].children[1].value;
-                    break;
-                }
-            }
-            filtered_data = filterArtistNameMyself(artistname, filtered_data);
-                //albumname
-            let albumname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
-                    albumname = filterroot.children[1].children[1].value;
-                    break;
-                }
-            }
-            filtered_data = filterAlbumName(albumname, filtered_data);
             //Filter functions to be used in sorting
             function removeDuplicateTrackHashId(data) {
                 let handledset = [];
@@ -935,6 +998,35 @@
                     }
                 }
             }
+            //Stage 2 Filtration
+                //trackname
+                let trackname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
+                    trackname = filterroot.children[1].children[1].value;
+                    break;
+                }
+            }
+            filtered_data = trackname != "" ? filterTrackNameMyself(trackname, filtered_data) : filtered_data;
+            console.log("---");
+                //artistname
+            let artistname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
+                    artistname = filterroot.children[1].children[1].value;
+                    break;
+                }
+            }
+            filtered_data = artistname != "" ? filterArtistNameMyself(artistname, filtered_data) : filtered_data;
+                //albumname
+            let albumname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
+                    albumname = filterroot.children[1].children[1].value;
+                    break;
+                }
+            }
+            filtered_data = albumname != "" ? filterAlbumNameMyself(albumname, filtered_data) : filtered_data;
             //Create html results from filtered & sorted data
             let counter = 0;
             function handle_placeholders(string, lho, counter) {
