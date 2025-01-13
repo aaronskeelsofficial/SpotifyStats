@@ -112,6 +112,7 @@
             generate_filter_card("Filter Song Name", "trackname", "text:Song Name");
             generate_filter_card("Filter Artist Name", "artistname", "text:Artist Name");
             generate_filter_card("Filter Album Name", "albumname", "text:Album Name");
+            generate_filter_card("Filter Listen Date", "listendate", "date:Start Date;date:End Date");
             generate_sort_card("Chronological", "timestamp", true, 1);
             generate_sort_card("Song Play Count", "trackplaycount", false, 1);
             generate_sort_card("Artist Play Count", "artistplaycount", false, 1);
@@ -335,24 +336,38 @@
                     let content = document.createElement("div");
                     content.id = "filtercontent_" + randomid;
                     filterdropdownhideout.append(content);
-                    for (let option of options.split(",")) {
+                    for (let option of options.split(";")) {
+                        let optionroot = document.createElement("div");
+                        content.append(optionroot);
                         let colonIndex = option.indexOf(":");
                         let key = option.substring(0, colonIndex);
                         let value = option.substring(colonIndex+1);
                         if (key == "html") {
-                            content.innerHTML = value;
+                            optionroot.innerHTML = value;
                         } else if (key == "text") {
                             if (value != "") {
                                 let desc = document.createElement("span");
                                 desc.innerText = value + " ";
-                                content.append(desc);
+                                optionroot.append(desc);
                             }
                             let input = document.createElement("input");
                             input.type = "text";
                             input.addEventListener("blur", (event) => {updateResultsWithFilters()});
                             input.addEventListener("keydown", (event) => {if (event.key == "Enter") updateResultsWithFilters();});
                             input.addEventListener("input", (event) => {updateResultsWithFilters();});
-                            content.append(input);
+                            optionroot.append(input);
+                        } else if (key == "date") {
+                            if (value != "") {
+                                let desc = document.createElement("span");
+                                desc.innerText = value + " ";
+                                optionroot.append(desc);
+                            }
+                            let input = document.createElement("input");
+                            input.type = "date";
+                            input.addEventListener("blur", (event) => {updateResultsWithFilters()});
+                            input.addEventListener("keydown", (event) => {if (event.key == "Enter") updateResultsWithFilters();});
+                            input.addEventListener("input", (event) => {updateResultsWithFilters();});
+                            optionroot.append(input);
                         }
                     }
                 }
@@ -534,6 +549,14 @@
                 return albumspotifyid_to_name_map[item.albumspotifyid].toLowerCase().includes(word);
             }
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
+        }
+        function filterListenDateMyself(startlistendate, endlistendate, data) {
+            console.log(startlistendate + " :: " + endlistendate);
+            return data.filter(item => {
+                let itemdate = new Date(item.timestamp);
+                console.log("     " + itemdate);
+                return itemdate.getTime() >= startlistendate.getTime() && itemdate.getTime() <= endlistendate.getTime();
+            });
         }
         let SORT_sortbyid; //default: timestamp
         let SORT_incordecmultiplier; //default: 1
@@ -775,17 +798,16 @@
                 let trackname = "";
             for (let filterroot of mainfiltersinner.children) {
                 if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
-                    trackname = filterroot.children[1].children[1].value;
+                    trackname = filterroot.children[1].children[0].children[1].value;
                     break;
                 }
             }
             filtered_data = trackname != "" ? filterTrackNameMyself(trackname, filtered_data) : filtered_data;
-            console.log("---");
                 //artistname
             let artistname = "";
             for (let filterroot of mainfiltersinner.children) {
                 if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
-                    artistname = filterroot.children[1].children[1].value;
+                    artistname = filterroot.children[1].children[0].children[1].value;
                     break;
                 }
             }
@@ -794,11 +816,27 @@
             let albumname = "";
             for (let filterroot of mainfiltersinner.children) {
                 if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
-                    albumname = filterroot.children[1].children[1].value;
+                    albumname = filterroot.children[1].children[0].children[1].value;
                     break;
                 }
             }
             filtered_data = albumname != "" ? filterAlbumNameMyself(albumname, filtered_data) : filtered_data;
+                //listendate
+            let startlistendate = "";
+            let endlistendate = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "listendate" && filterroot.dataset.selected == "1") {
+                    startlistendate = filterroot.children[1].children[0].children[1].value;
+                    endlistendate = filterroot.children[1].children[1].children[1].value;
+                    break;
+                }
+            }
+            // startlistendate = startlistendate != "" ? convertDateInputToRFC3339(startlistendate + "T00:00:00Z") : new Date('0001-01-01').toISOString();
+            // endlistendate = endlistendate != "" ? convertDateInputToRFC3339(endlistendate + "T23:59:59Z") : new Date('9999-12-31').toISOString();
+            startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01');
+            endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31');
+            filtered_data = filterListenDateMyself(startlistendate, endlistendate, filtered_data);
+            // filtered_data = albumname != "" ? filterAlbumNameMyself(albumname, filtered_data) : filtered_data;
             //Create html results from filtered & sorted data
             let counter = 0;
             function handle_placeholders(string, lho, counter) {
