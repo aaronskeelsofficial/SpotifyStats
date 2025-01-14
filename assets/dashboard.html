@@ -440,7 +440,7 @@
             let lnewgroup = [];
             let rightexpr = expr.substring(index_closedParen+1);
             let rnewgroup = [];
-            console.log("(P)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+            // console.log("(P)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
             EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
             EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
             if (lnewgroup.length != 0) group.push(lnewgroup);
@@ -449,7 +449,7 @@
         function EXPRINTERPRETER_handleAnd(expr, index_and, group) {
             let leftexpr = expr.substring(0, index_and);
             let rightexpr = expr.substring(index_and+1);
-            console.log("(A)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+            // console.log("(A)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
             EXPRINTERPRETER_handleExpression(leftexpr, group);
             EXPRINTERPRETER_handleExpression(rightexpr, group);
         }
@@ -458,7 +458,7 @@
             let lnewgroup = [];
             let rightexpr = expr.substring(index_or+1);
             let rnewgroup = [];
-            console.log("(O)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+            // console.log("(O)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
             EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
             EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
             if (lnewgroup.length != 0) group.push(lnewgroup);
@@ -510,7 +510,7 @@
             // let index_or = expr.indexOf("|");
             let index_or = findOrIndex(expr);
             index_or = index_or == -1 ? 9999999999 : index_or;
-            console.log(`expr:'${expr}', oP:${index_openParen}, cP:${index_closedParen}, a:${index_and}, o:${index_or}`);
+            // console.log(`expr:'${expr}', oP:${index_openParen}, cP:${index_closedParen}, a:${index_and}, o:${index_or}`);
             if (index_and != 9999999999 && index_and < index_or)
                 EXPRINTERPRETER_handleAnd(expr, index_and, group);
             else if (index_or != 9999999999 && index_or < index_and)
@@ -518,12 +518,8 @@
             else if (index_openParen != 9999999999 && index_openParen < index_closedParen && index_closedParen != 9999999999)
                 EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group);
             else {
-                if(expr != "") {
-                    console.log("group pushed")
+                if(expr != "")
                     group.push(expr);
-                } else {
-                    console.log("group ignored");
-                }
             }
         }
         function filterUsers(spotifyidarray, data) {
@@ -542,8 +538,8 @@
         function filterTrackNamePt2(expression, data) {
             let rootgroup = [];
             EXPRINTERPRETER_handleExpression(expression, rootgroup);
-            console.log("rootgroup:");
-            console.log(rootgroup);
+            // console.log("rootgroup:");
+            // console.log(rootgroup);
             //Recurse through children, discovering if they are true or false
             function evaluateIfGroupIsTrue(groupOrString, item) {
                 if (groupOrString.length == 0)
@@ -631,7 +627,6 @@
                 }
                 //Now we know it's a single string to actually check
                 let word = groupOrString.toLowerCase();
-                console.log(item.albumspotifyid + " :: " + item.trackhashid);
                 return item.albumspotifyid != "" ? albumspotifyid_to_name_map[item.albumspotifyid].toLowerCase().includes(word) : false;
             }
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
