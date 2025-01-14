@@ -482,7 +482,17 @@
         function filterUsers(spotifyidarray, data) {
             return data.filter(item => spotifyidarray.includes(item.spotifyid));
         }
-        function filterTrackNameMyself(expression, data) {
+        function filterTrackNamePt1(data) {
+            let trackname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
+                    trackname = filterroot.children[1].children[0].children[1].value;
+                    break;
+                }
+            }
+            return trackname != "" ? filterTrackNamePt2(trackname, data) : data;
+        }
+        function filterTrackNamePt2(expression, data) {
             let rootgroup = [];
             EXPRINTERPRETER_handleExpression(expression, rootgroup);
             // console.log("rootgroup:");
@@ -505,7 +515,17 @@
             }
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
         }
-        function filterArtistNameMyself(expression, data) {
+        function filterArtistNamePt1(data) {
+            let artistname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
+                    artistname = filterroot.children[1].children[0].children[1].value;
+                    break;
+                }
+            }
+            return artistname != "" ? filterArtistNamePt2(artistname, data) : data;
+        }
+        function filterArtistNamePt2(expression, data) {
             let rootgroup = [];
             EXPRINTERPRETER_handleExpression(expression, rootgroup);
             //Recurse through children, discovering if they are true or false
@@ -535,7 +555,17 @@
             }
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
         }
-        function filterAlbumNameMyself(expression, data) {
+        function filterAlbumNamePt1(data) {
+            let albumname = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
+                    albumname = filterroot.children[1].children[0].children[1].value;
+                    break;
+                }
+            }
+            return albumname != "" ? filterAlbumNamePt2(albumname, data) : data;
+        }
+        function filterAlbumNamePt2(expression, data) {
             let rootgroup = [];
             EXPRINTERPRETER_handleExpression(expression, rootgroup);
             // console.log("rootgroup:");
@@ -554,11 +584,26 @@
                 }
                 //Now we know it's a single string to actually check
                 let word = groupOrString.toLowerCase();
-                return albumspotifyid_to_name_map[item.albumspotifyid].toLowerCase().includes(word);
+                console.log(item.albumspotifyid + " :: " + item.trackhashid);
+                return item.albumspotifyid != "" ? albumspotifyid_to_name_map[item.albumspotifyid].toLowerCase().includes(word) : false;
             }
             return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
         }
-        function filterListenDateMyself(startlistendate, endlistendate, data) {
+        function filterListenDatePt1(data) {
+            let startlistendate = "";
+            let endlistendate = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "listendate" && filterroot.dataset.selected == "1") {
+                    startlistendate = filterroot.children[1].children[0].children[1].value;
+                    endlistendate = filterroot.children[1].children[1].children[1].value;
+                    break;
+                }
+            }
+            startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01'); //We MUST add the time or JS assumes UTC
+            endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31'); //We MUST add the time or JS assumes UTC
+            return filterListenDatePt2(startlistendate, endlistendate, data);
+        }
+        function filterListenDatePt2(startlistendate, endlistendate, data) {
             if (startlistendate == new Date('0001-01-01') && endlistendate == new Date('9999-12-31'))
                 return data;
             return data.filter(item => {
@@ -566,7 +611,21 @@
                 return itemdate.getTime() >= startlistendate.getTime() && itemdate.getTime() <= endlistendate.getTime();
             });
         }
-        function filterListenTimeMyself(startlistentime, endlistentime, data) {
+        function filterListenTimePt1(data) {
+            let startlistentime = "";
+            let endlistentime = "";
+            for (let filterroot of mainfiltersinner.children) {
+                if (filterroot.dataset.desc == "listentime" && filterroot.dataset.selected == "1") {
+                    startlistentime = filterroot.children[1].children[0].children[1].value;
+                    endlistentime = filterroot.children[1].children[1].children[1].value;
+                    break;
+                }
+            }
+            startlistentime = startlistentime != "" ? startlistentime : "00:00:00";
+            endlistentime = endlistentime != "" ? endlistentime : "23:59:59";
+            return filterListenTimePt2(startlistentime, endlistentime, data);
+        }
+        function filterListenTimePt2(startlistentime, endlistentime, data) {
             if (startlistentime == "00:00:00" && endlistentime == "23:59:59")
                 return data;
             return data.filter(item => {
@@ -575,12 +634,20 @@
                 return itemtime >= startlistentime && itemtime <= endlistentime;
             });
         }
+        function filterStage2(data) {
+            data = filterTrackNamePt1(data);
+            data = filterArtistNamePt1(data);
+            data = filterAlbumNamePt1(data);
+            data = filterListenDatePt1(data);
+            data = filterListenTimePt1(data);
+            return data;
+        }
         let SORT_sortbyid; //default: timestamp
         let SORT_incordecmultiplier; //default: 1
         function updateResultsWithFilters() {
             let attachpointelem = document.getElementById("mainresultsinner");
             attachpointelem.innerHTML = ""; //Reset the results html
-            //Stage 1 Filtration
+            //Stage 1 Filtration (applies to all at beginning, unlike Stage 2)
             let filtered_data = listen_history_info.map(obj => ({ ...obj }));;
             filtered_data = FILTER_selectedaccounts_spotifyids.length != 0 ? filterUsers(FILTER_selectedaccounts_spotifyids, filtered_data) : filtered_data;
             //Filter functions to be used in sorting
@@ -630,12 +697,21 @@
                 return newdata;
             }
             //Load playcount info
-            load_playcount_info(filtered_data);
+            // load_playcount_info(filtered_data); //This has been moved to wherever it's needed in the sorting steps
             //Sort data
             let special_space = "&nbsp;&nbsp;&nbsp;&nbsp;";
             let special_divider = special_space + "|" + special_space;
             if (true) {
+                /*
+                In general, all sorting cases should at SOME point (though order may change):
+                    1. Load Playcount Info: load_playcount_info(filtered_data);
+                    2. Remove Duplicates (optional): removeDuplicate_(filtered_data);
+                    3. Sort by some logic
+                    4. Filter Stage 2: filtered_data = filterStage2(filtered_data);
+                */
                 if (SORT_sortbyid == "timestamp") {
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
                     filtered_data.sort((a,b) => a.timestamp > b.timestamp ? -1*SORT_incordecmultiplier : (a.timestamp < b.timestamp ? 1*SORT_incordecmultiplier : 0));
                     for (let lho of filtered_data) {
                         let date = new Date(lho.timestamp);
@@ -655,6 +731,8 @@
                         lho.secondaryhtmlstring = special_space + formattedDate;
                     }
                 } else if (SORT_sortbyid == "trackplaycount") {
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
                     filtered_data = removeDuplicateTrackHashId(filtered_data);
                     filtered_data.sort((a,b) => {
                         let aval = trackplaycountinfomap[a.trackhashid];
@@ -671,6 +749,9 @@
                 } else if (SORT_sortbyid == "artistplaycount") {
                     //This one is very special. Because there can be multiple artists per song, and people would want to know both independently
                     // in this sorted list, we need to duplicate/split the data per artist. THEN we will sort.
+                    //
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
                     //First, duplicate/split
                     for (let i = 0;i < filtered_data.length;i++) {
                         let lho = filtered_data[i];
@@ -691,9 +772,9 @@
                             filtered_data.push(clone);
                         }
                     }
-                    //Second, remove listenhistoryobjects with duplicate artists
+                    //Third, remove listenhistoryobjects with duplicate artists
                     filtered_data = removeDuplicateArtistSpotifyId(filtered_data);
-                    //Third, now we sort
+                    //Fourth, now we sort
                     filtered_data.sort((a,b) => {
                         let aartist = a.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",");
                         let bartist = b.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",");
@@ -704,6 +785,9 @@
                 } else if (SORT_sortbyid == "albumplaycount") {
                     //Remove all entries without albums
                     filtered_data = filtered_data.filter((item) => item.albumspotifyid in albumspotifyid_to_name_map);
+                    //Load playcount
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
                     //Remove dupes
                     filtered_data = removeDuplicateAlbumSpotifyId(filtered_data);
                     //
@@ -729,6 +813,8 @@
                         lho.secondaryhtmlstring = special_space + albumplaycountinfomap[lho.albumspotifyid] + " Play(s)";
                     }
                 } else if (SORT_sortbyid == "trackname") {
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
                     filtered_data = removeDuplicateTrackHashId(filtered_data);
                     filtered_data.sort((a,b) => {
                         let aval = trackhashid_to_name_map[a.trackhashid].toLowerCase();
@@ -745,6 +831,9 @@
                 } else if (SORT_sortbyid == "artistname") {
                     //This one is very special. Because there can be multiple artists per song, and people would want to know both independently
                     // in this sorted list, we need to duplicate/split the data per artist. THEN we will sort.
+                    //
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
                     //First, duplicate/split
                     for (let i = 0;i < filtered_data.length;i++) {
                         let lho = filtered_data[i];
@@ -776,6 +865,8 @@
                         return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
                     });
                 } else if (SORT_sortbyid == "albumname") {
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
                     filtered_data = removeDuplicateAlbumSpotifyId(filtered_data);
                     filtered_data.sort((a,b) => {
                         let aname = albumspotifyid_to_name_map[a.albumspotifyid];
@@ -810,59 +901,65 @@
                 }
             }
             //Stage 2 Filtration
+            // filtered_data = filterStage2(filtered_data);
                 //trackname
-                let trackname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
-                    trackname = filterroot.children[1].children[0].children[1].value;
-                    break;
-                }
-            }
-            filtered_data = trackname != "" ? filterTrackNameMyself(trackname, filtered_data) : filtered_data;
+            // filtered_data = filterTrackNamePt1(filtered_data);
+            // let trackname = "";
+            // for (let filterroot of mainfiltersinner.children) {
+            //     if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
+            //         trackname = filterroot.children[1].children[0].children[1].value;
+            //         break;
+            //     }
+            // }
+            // filtered_data = trackname != "" ? filterTrackNamePt2(trackname, filtered_data) : filtered_data;
                 //artistname
-            let artistname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
-                    artistname = filterroot.children[1].children[0].children[1].value;
-                    break;
-                }
-            }
-            filtered_data = artistname != "" ? filterArtistNameMyself(artistname, filtered_data) : filtered_data;
+            // filtered_data = filterArtistNamePt1(filtered_data);
+            // let artistname = "";
+            // for (let filterroot of mainfiltersinner.children) {
+            //     if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
+            //         artistname = filterroot.children[1].children[0].children[1].value;
+            //         break;
+            //     }
+            // }
+            // filtered_data = artistname != "" ? filterArtistNamePt2(artistname, filtered_data) : filtered_data;
                 //albumname
-            let albumname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
-                    albumname = filterroot.children[1].children[0].children[1].value;
-                    break;
-                }
-            }
-            filtered_data = albumname != "" ? filterAlbumNameMyself(albumname, filtered_data) : filtered_data;
+            // filtered_data = filterAlbumNamePt1(filtered_data);
+            // let albumname = "";
+            // for (let filterroot of mainfiltersinner.children) {
+            //     if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
+            //         albumname = filterroot.children[1].children[0].children[1].value;
+            //         break;
+            //     }
+            // }
+            // filtered_data = albumname != "" ? filterAlbumNamePt2(albumname, filtered_data) : filtered_data;
                 //listendate
-            let startlistendate = "";
-            let endlistendate = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "listendate" && filterroot.dataset.selected == "1") {
-                    startlistendate = filterroot.children[1].children[0].children[1].value;
-                    endlistendate = filterroot.children[1].children[1].children[1].value;
-                    break;
-                }
-            }
-            startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01'); //We MUST add the time or JS assumes UTC
-            endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31'); //We MUST add the time or JS assumes UTC
-            filtered_data = filterListenDateMyself(startlistendate, endlistendate, filtered_data);
+            // filtered_data = filterListenDatePt1(filtered_data);
+            // let startlistendate = "";
+            // let endlistendate = "";
+            // for (let filterroot of mainfiltersinner.children) {
+            //     if (filterroot.dataset.desc == "listendate" && filterroot.dataset.selected == "1") {
+            //         startlistendate = filterroot.children[1].children[0].children[1].value;
+            //         endlistendate = filterroot.children[1].children[1].children[1].value;
+            //         break;
+            //     }
+            // }
+            // startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01'); //We MUST add the time or JS assumes UTC
+            // endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31'); //We MUST add the time or JS assumes UTC
+            // filtered_data = filterListenDatePt2(startlistendate, endlistendate, filtered_data);
                 //listentime
-            let startlistentime = "";
-            let endlistentime = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "listentime" && filterroot.dataset.selected == "1") {
-                    startlistentime = filterroot.children[1].children[0].children[1].value;
-                    endlistentime = filterroot.children[1].children[1].children[1].value;
-                    break;
-                }
-            }
-            startlistentime = startlistentime != "" ? startlistentime : "00:00:00";
-            endlistentime = endlistentime != "" ? endlistentime : "23:59:59";
-            filtered_data = filterListenTimeMyself(startlistentime, endlistentime, filtered_data);
+            // filtered_data = filterListenTimePt1(filtered_data);
+            // let startlistentime = "";
+            // let endlistentime = "";
+            // for (let filterroot of mainfiltersinner.children) {
+            //     if (filterroot.dataset.desc == "listentime" && filterroot.dataset.selected == "1") {
+            //         startlistentime = filterroot.children[1].children[0].children[1].value;
+            //         endlistentime = filterroot.children[1].children[1].children[1].value;
+            //         break;
+            //     }
+            // }
+            // startlistentime = startlistentime != "" ? startlistentime : "00:00:00";
+            // endlistentime = endlistentime != "" ? endlistentime : "23:59:59";
+            // filtered_data = filterListenTimePt2(startlistentime, endlistentime, filtered_data);
             //Create html results from filtered & sorted data
             let counter = 0;
             function handle_placeholders(string, lho, counter) {
