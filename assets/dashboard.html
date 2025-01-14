@@ -462,6 +462,7 @@
             if (rnewgroup.length != 0) group.push(rnewgroup);
         }
         function EXPRINTERPRETER_handleExpression(expr, group) {
+            expr = expr.trim();
             let index_openParen = expr.indexOf("(");
             index_openParen = index_openParen == -1 ? 9999999999 : index_openParen;
             let index_closedParen = expr.indexOf(")");
