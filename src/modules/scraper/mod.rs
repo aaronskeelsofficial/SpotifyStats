@@ -20,6 +20,7 @@ pub fn main() {
         .unwrap()
         .block_on(async {
             loop {
+                do_task_without_time_check().await;
                 let average_song_duration = 3;
                 let maximum_songs_per_request = 50;
                 let total_runtime: u64 = average_song_duration*maximum_songs_per_request;
@@ -27,7 +28,6 @@ pub fn main() {
                 // that's how long we could wait for a queue of 50 (because spotify only stores last 50)
                 let new_time = Local::now() + chrono::Duration::minutes(total_runtime.try_into().unwrap());
                 println!("Next scrape @: {}", new_time.to_string());
-                // do_task_without_time_check().await;
                 sleep(std::time::Duration::from_secs(60*total_runtime)).await;
                 do_task_without_time_check().await;
             }
