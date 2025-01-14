@@ -354,8 +354,8 @@
                             }
                             let input = document.createElement("input");
                             input.type = "text";
-                            input.addEventListener("blur", (event) => {updateResultsWithFilters()});
-                            input.addEventListener("keydown", (event) => {if (event.key == "Enter") updateResultsWithFilters();});
+                            // input.addEventListener("blur", (event) => {updateResultsWithFilters()});
+                            // input.addEventListener("keydown", (event) => {if (event.key == "Enter") updateResultsWithFilters();});
                             input.addEventListener("input", (event) => {updateResultsWithFilters();});
                             optionroot.append(input);
                         } else if (key == "date") {
@@ -438,47 +438,93 @@
         function EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group) {
             let leftexpr = expr.substring(index_openParen+1, index_closedParen);
             let lnewgroup = [];
-            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
-            if (lnewgroup.length != 0) group.push(lnewgroup);
             let rightexpr = expr.substring(index_closedParen+1);
             let rnewgroup = [];
+            console.log("(P)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
             EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
+            if (lnewgroup.length != 0) group.push(lnewgroup);
             if (rnewgroup.length != 0) group.push(rnewgroup);
         }
         function EXPRINTERPRETER_handleAnd(expr, index_and, group) {
             let leftexpr = expr.substring(0, index_and);
-            EXPRINTERPRETER_handleExpression(leftexpr, group);
             let rightexpr = expr.substring(index_and+1);
+            console.log("(A)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+            EXPRINTERPRETER_handleExpression(leftexpr, group);
             EXPRINTERPRETER_handleExpression(rightexpr, group);
         }
         function EXPRINTERPRETER_handleOr(expr, index_or, group) {
             let leftexpr = expr.substring(0, index_or);
             let lnewgroup = [];
-            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
-            if (lnewgroup.length != 0) group.push(lnewgroup);
             let rightexpr = expr.substring(index_or+1);
             let rnewgroup = [];
+            console.log("(O)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
             EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
+            if (lnewgroup.length != 0) group.push(lnewgroup);
             if (rnewgroup.length != 0) group.push(rnewgroup);
         }
         function EXPRINTERPRETER_handleExpression(expr, group) {
+            function findClosedParenthesisIndex(expr, openParenthesisIndex) { //Parenthesis can be nested so we don't want the FIRST closed, we want the closed which pairs with the open
+                let index = openParenthesisIndex+1;
+                let count = 1;
+                while (index < expr.length && count != 0) {
+                    let char = expr.charAt(index);
+                    count += char == '(' ? 1 : (char == ')' ? -1 : 0);
+                    index++;
+                }
+                return count == 0 ? index-1 : -1;
+            }
+            function findAndIndex(expr) { //We want to find the first '&' while counter is 0 (we are not enclosed in parenthesis)
+                let index = 0;
+                let count = 0;
+                let char = '';
+                while (!(char == '&' && count == 0) && index < expr.length) {
+                    char = expr.charAt(index);
+                    count += char == '(' ? 1 : (char == ')' ? -1 : 0);
+                    index++;
+                }
+                return (char == '&' && count == 0) ? index-1 : -1;
+            }
+            function findOrIndex(expr) { //We want to find the first '&' while counter is 0 (we are not enclosed in parenthesis)
+                let index = 0;
+                let count = 0;
+                let char = '';
+                while (!(char == '|' && count == 0) && index < expr.length) {
+                    char = expr.charAt(index);
+                    count += char == '(' ? 1 : (char == ')' ? -1 : 0);
+                    // console.log(`expr(${expr}),i(${index}),c(${count}),char(${char})`);
+                    index++;
+                }
+                return (char == '|' && count == 0) ? index-1 : -1;
+            }
             expr = expr.trim();
             let index_openParen = expr.indexOf("(");
             index_openParen = index_openParen == -1 ? 9999999999 : index_openParen;
-            let index_closedParen = expr.indexOf(")");
+            // let index_closedParen = expr.indexOf(")");
+            let index_closedParen = findClosedParenthesisIndex(expr, index_openParen);
             index_closedParen = index_closedParen == -1 ? 9999999999 : index_closedParen;
-            let index_and = expr.indexOf("&");
+            // let index_and = expr.indexOf("&");
+            let index_and = findAndIndex(expr);
             index_and = index_and == -1 ? 9999999999 : index_and;
-            let index_or = expr.indexOf("|");
+            // let index_or = expr.indexOf("|");
+            let index_or = findOrIndex(expr);
             index_or = index_or == -1 ? 9999999999 : index_or;
-            if (index_openParen != 9999999999 && index_openParen < index_and && index_openParen < index_or && (index_openParen < index_closedParen && index_closedParen != 9999999999))
-                EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group);
-            else if (index_and != 9999999999 && index_and < index_openParen && index_and < index_or)
+            console.log(`expr:'${expr}', oP:${index_openParen}, cP:${index_closedParen}, a:${index_and}, o:${index_or}`);
+            if (index_and != 9999999999 && index_and < index_or)
                 EXPRINTERPRETER_handleAnd(expr, index_and, group);
-            else if (index_or != 9999999999 && index_or < index_openParen && index_or < index_and)
+            else if (index_or != 9999999999 && index_or < index_and)
                 EXPRINTERPRETER_handleOr(expr, index_or, group);
-            else
-                if(expr != "") group.push(expr);
+            else if (index_openParen != 9999999999 && index_openParen < index_closedParen && index_closedParen != 9999999999)
+                EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group);
+            else {
+                if(expr != "") {
+                    console.log("group pushed")
+                    group.push(expr);
+                } else {
+                    console.log("group ignored");
+                }
+            }
         }
         function filterUsers(spotifyidarray, data) {
             return data.filter(item => spotifyidarray.includes(item.spotifyid));
@@ -496,8 +542,8 @@
         function filterTrackNamePt2(expression, data) {
             let rootgroup = [];
             EXPRINTERPRETER_handleExpression(expression, rootgroup);
-            // console.log("rootgroup:");
-            // console.log(rootgroup);
+            console.log("rootgroup:");
+            console.log(rootgroup);
             //Recurse through children, discovering if they are true or false
             function evaluateIfGroupIsTrue(groupOrString, item) {
                 if (groupOrString.length == 0)
@@ -901,66 +947,6 @@
                     }
                 }
             }
-            //Stage 2 Filtration
-            // filtered_data = filterStage2(filtered_data);
-                //trackname
-            // filtered_data = filterTrackNamePt1(filtered_data);
-            // let trackname = "";
-            // for (let filterroot of mainfiltersinner.children) {
-            //     if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
-            //         trackname = filterroot.children[1].children[0].children[1].value;
-            //         break;
-            //     }
-            // }
-            // filtered_data = trackname != "" ? filterTrackNamePt2(trackname, filtered_data) : filtered_data;
-                //artistname
-            // filtered_data = filterArtistNamePt1(filtered_data);
-            // let artistname = "";
-            // for (let filterroot of mainfiltersinner.children) {
-            //     if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
-            //         artistname = filterroot.children[1].children[0].children[1].value;
-            //         break;
-            //     }
-            // }
-            // filtered_data = artistname != "" ? filterArtistNamePt2(artistname, filtered_data) : filtered_data;
-                //albumname
-            // filtered_data = filterAlbumNamePt1(filtered_data);
-            // let albumname = "";
-            // for (let filterroot of mainfiltersinner.children) {
-            //     if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
-            //         albumname = filterroot.children[1].children[0].children[1].value;
-            //         break;
-            //     }
-            // }
-            // filtered_data = albumname != "" ? filterAlbumNamePt2(albumname, filtered_data) : filtered_data;
-                //listendate
-            // filtered_data = filterListenDatePt1(filtered_data);
-            // let startlistendate = "";
-            // let endlistendate = "";
-            // for (let filterroot of mainfiltersinner.children) {
-            //     if (filterroot.dataset.desc == "listendate" && filterroot.dataset.selected == "1") {
-            //         startlistendate = filterroot.children[1].children[0].children[1].value;
-            //         endlistendate = filterroot.children[1].children[1].children[1].value;
-            //         break;
-            //     }
-            // }
-            // startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01'); //We MUST add the time or JS assumes UTC
-            // endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31'); //We MUST add the time or JS assumes UTC
-            // filtered_data = filterListenDatePt2(startlistendate, endlistendate, filtered_data);
-                //listentime
-            // filtered_data = filterListenTimePt1(filtered_data);
-            // let startlistentime = "";
-            // let endlistentime = "";
-            // for (let filterroot of mainfiltersinner.children) {
-            //     if (filterroot.dataset.desc == "listentime" && filterroot.dataset.selected == "1") {
-            //         startlistentime = filterroot.children[1].children[0].children[1].value;
-            //         endlistentime = filterroot.children[1].children[1].children[1].value;
-            //         break;
-            //     }
-            // }
-            // startlistentime = startlistentime != "" ? startlistentime : "00:00:00";
-            // endlistentime = endlistentime != "" ? endlistentime : "23:59:59";
-            // filtered_data = filterListenTimePt2(startlistentime, endlistentime, filtered_data);
             //Create html results from filtered & sorted data
             let counter = 0;
             function handle_placeholders(string, lho, counter) {
