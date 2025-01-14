@@ -20,7 +20,7 @@ pub fn main() {
         .unwrap()
         .block_on(async {
             loop {
-                do_task_without_time_check().await;
+                // do_task_without_time_check().await;
                 let average_song_duration = 3;
                 let maximum_songs_per_request = 50;
                 let total_runtime: u64 = average_song_duration*maximum_songs_per_request;

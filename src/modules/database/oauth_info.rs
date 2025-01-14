@@ -169,3 +169,28 @@ pub fn get_spotifyid_to_displayname_map_json_string(uuid: &String) -> String {
     // Return the JSON string
     json_data.to_string()
 }
+
+pub fn get_displaynameauthtoken_pairs_from_uuid(uuid: &String) -> HashMap<String, String> {
+    let conn_guard = OAUTHINFO_CONN.lock().unwrap();
+    let mut result_map: HashMap<String, String> = HashMap::new();
+    let query = "
+        SELECT displayname,token
+        FROM oauth_info
+        WHERE uuid = ?1
+    ";
+    // Prepare the statement
+    let stmt = &mut conn_guard.prepare(query).unwrap();
+    // Execute the query and populate the HashMap
+    stmt.query_map(params![uuid], |row| {
+        let displayname: String = row.get(0)?;
+        let authtoken: String = row.get(1)?;
+        Ok((displayname, authtoken))
+    })
+    .unwrap()
+    .for_each(|result| {
+        if let Ok((displayname, authtoken)) = result {
+            result_map.insert(displayname, authtoken);
+        }
+    });
+    return result_map;
+}

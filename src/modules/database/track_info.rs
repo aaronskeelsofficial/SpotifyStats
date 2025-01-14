@@ -22,7 +22,8 @@ pub fn first_init_if_necessary() {
             externalids TEXT,
             islocal INTEGER,
             popularity INTEGER,
-            tracknumber INTEGER
+            tracknumber INTEGER,
+            durationmillis INTEGER
         )",
         [],
     ).unwrap();
@@ -39,9 +40,9 @@ pub fn register_track(track: &Track) -> Result<()> {
     let externalids = track.get_externalids_json();
     let islocal: i32 = track.is_local.try_into().unwrap();
     conn_guard.execute(
-        "INSERT OR IGNORE INTO track_info (hashid,spotifyid,name,artists,explicit,externalids,islocal,popularity,tracknumber)
-        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-        params![&hashid,spotifyid,track.name,&artists,&explicit,&externalids,&islocal,track.popularity,track.track_number],
+        "INSERT OR IGNORE INTO track_info (hashid,spotifyid,name,artists,explicit,externalids,islocal,popularity,tracknumber,durationmillis)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+        params![&hashid,spotifyid,track.name,&artists,&explicit,&externalids,&islocal,&track.popularity,&track.track_number,&track.duration_ms],
     )?;
 
     Ok(())
@@ -58,10 +59,11 @@ struct TrackJsonObject {
     islocal: i64,
     popularity: i64,
     tracknumber: i64,
+    durationmillis: i64,
 }
 pub fn get_info_as_json() -> String {
     let conn_guard = TRACKINFO_CONN.lock().unwrap();
-    let mut stmt = conn_guard.prepare("SELECT hashid,spotifyid,name,artists,explicit,externalids,islocal,popularity,tracknumber FROM track_info").unwrap();
+    let mut stmt = conn_guard.prepare("SELECT hashid,spotifyid,name,artists,explicit,externalids,islocal,popularity,tracknumber,durationmillis FROM track_info").unwrap();
     let info_iter = stmt.query_map(params![], |row| {
         Ok(TrackJsonObject {
             hashid: row.get(0)?,
@@ -73,6 +75,7 @@ pub fn get_info_as_json() -> String {
             islocal: row.get(6)?,
             popularity: row.get(7)?,
             tracknumber: row.get(8)?,
+            durationmillis: row.get(9)?,
         })
     }).unwrap();
     let mut info_list: Vec<TrackJsonObject> = Vec::new();

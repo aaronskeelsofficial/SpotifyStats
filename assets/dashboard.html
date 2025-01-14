@@ -77,7 +77,7 @@
                 </div>
                 <div id="mainresults" class="maincenter" style="width:55%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
                     <p class="menuheader">Results</p>
-                    <div id="mainresultsinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;overflow-y:scroll;"></div>
+                    <div id="mainresultsinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;overflow-y:scroll;padding-top:20px;"></div>
                 </div>
             </div>
         </div>
@@ -118,6 +118,9 @@
             generate_sort_card("Song Play Count", "trackplaycount", false, 1);
             generate_sort_card("Artist Play Count", "artistplaycount", false, 1);
             generate_sort_card("Album Play Count", "albumplaycount", false, 1);
+            generate_sort_card("Song Play Duration", "trackplayduration", false, 1);
+            generate_sort_card("Artist Play Duration", "artistplayduration", false, 1);
+            generate_sort_card("Album Play Duration", "albumplayduration", false, 1);
             generate_sort_card("Song Name", "trackname", false, 1);
             generate_sort_card("Artist Name", "artistname", false, 1);
             generate_sort_card("Album Name", "albumname", false, 1);
@@ -261,6 +264,9 @@
         let trackplaycountinfomap; //trackhashid -> playcount
         let artistplaycountinfomap; //artistspotifyid -> playcount
         let albumplaycountinfomap; //albumspotifyid -> playcount
+        let trackplaydurationinfomap; //trackhashid -> playduration
+        let artistplaydurationinfomap; //artistspotifyid -> playduration
+        let albumplaydurationinfomap; //albumspotifyid -> playduration
         function load_playcount_info(data) {
             trackplaycountinfomap = {};
             artistplaycountinfomap = {};
@@ -279,6 +285,52 @@
             for (let lho of data) {
                 albumplaycountinfomap[lho.albumspotifyid] = lho.albumspotifyid in albumplaycountinfomap ? albumplaycountinfomap[lho.albumspotifyid]+1 : 1;
             }
+            //
+            load_playduration_info(data);
+        }
+        function load_playduration_info(data) {
+            trackplaydurationinfomap = {};
+            artistplaydurationinfomap = {};
+            albumplaydurationinfomap = {};
+            for (let lho of data) {
+                let track;
+                for (let t of track_info) {
+                    if (lho.trackhashid == t.hashid) {
+                        track = t;
+                        break;
+                    }
+                }
+                let d = track.durationmillis;
+                //Track
+                trackplaydurationinfomap[lho.trackhashid] = lho.trackhashid in trackplaydurationinfomap ? trackplaydurationinfomap[lho.trackhashid]+d : d;
+                //Artist
+                let artistids = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
+                for (let artistid of artistids) {
+                    artistplaydurationinfomap[artistid] = artistid in artistplaydurationinfomap ? artistplaydurationinfomap[artistid]+d : d;
+                }
+                //Album
+                albumplaydurationinfomap[lho.albumspotifyid] = lho.albumspotifyid in albumplaydurationinfomap ? albumplaydurationinfomap[lho.albumspotifyid]+d : d;
+            }
+        }
+        function duration_to_human_string(durationmillis) {
+            let days = Math.floor(durationmillis / (1000 * 60 * 60 * 24));
+            let hours = Math.floor((durationmillis % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            let minutes = Math.floor((durationmillis % (1000 * 60 * 60)) / (1000 * 60));
+            let seconds = Math.floor((durationmillis % (1000 * 60)) / 1000);
+            let str = '';
+            if (days > 0) {
+                str += days + 'd ';
+            }
+            if (hours > 0) {
+                str += hours + 'h ';
+            }
+            if (minutes > 0) {
+                str += minutes + 'm ';
+            }
+            if (seconds > 0) {
+                str += seconds + 's ';
+            }
+            return str.trim();
         }
         // Generate Account Cards
         let FILTER_selectedaccounts_spotifyids = [];
@@ -435,36 +487,36 @@
         }
         // Filtering Functions
         //Fundamentally, structure of interpreter will be an array of array of expressions
-        function EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group) {
-            let leftexpr = expr.substring(index_openParen+1, index_closedParen);
-            let lnewgroup = [];
-            let rightexpr = expr.substring(index_closedParen+1);
-            let rnewgroup = [];
-            // console.log("(P)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
-            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
-            EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
-            if (lnewgroup.length != 0) group.push(lnewgroup);
-            if (rnewgroup.length != 0) group.push(rnewgroup);
-        }
-        function EXPRINTERPRETER_handleAnd(expr, index_and, group) {
-            let leftexpr = expr.substring(0, index_and);
-            let rightexpr = expr.substring(index_and+1);
-            // console.log("(A)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
-            EXPRINTERPRETER_handleExpression(leftexpr, group);
-            EXPRINTERPRETER_handleExpression(rightexpr, group);
-        }
-        function EXPRINTERPRETER_handleOr(expr, index_or, group) {
-            let leftexpr = expr.substring(0, index_or);
-            let lnewgroup = [];
-            let rightexpr = expr.substring(index_or+1);
-            let rnewgroup = [];
-            // console.log("(O)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
-            EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
-            EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
-            if (lnewgroup.length != 0) group.push(lnewgroup);
-            if (rnewgroup.length != 0) group.push(rnewgroup);
-        }
         function EXPRINTERPRETER_handleExpression(expr, group) {
+            function EXPRINTERPRETER_handleParen(expr, index_openParen, index_closedParen, group) {
+                let leftexpr = expr.substring(index_openParen+1, index_closedParen);
+                let lnewgroup = [];
+                let rightexpr = expr.substring(index_closedParen+1);
+                let rnewgroup = [];
+                // console.log("(P)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+                EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
+                EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
+                if (lnewgroup.length != 0) group.push(lnewgroup);
+                if (rnewgroup.length != 0) group.push(rnewgroup);
+            }
+            function EXPRINTERPRETER_handleAnd(expr, index_and, group) {
+                let leftexpr = expr.substring(0, index_and);
+                let rightexpr = expr.substring(index_and+1);
+                // console.log("(A)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+                EXPRINTERPRETER_handleExpression(leftexpr, group);
+                EXPRINTERPRETER_handleExpression(rightexpr, group);
+            }
+            function EXPRINTERPRETER_handleOr(expr, index_or, group) {
+                let leftexpr = expr.substring(0, index_or);
+                let lnewgroup = [];
+                let rightexpr = expr.substring(index_or+1);
+                let rnewgroup = [];
+                // console.log("(O)O: '" + expr + "'   ::   L: '" + leftexpr + "'   ::   R: '" + rightexpr + "'");
+                EXPRINTERPRETER_handleExpression(leftexpr, lnewgroup);
+                EXPRINTERPRETER_handleExpression(rightexpr, rnewgroup);
+                if (lnewgroup.length != 0) group.push(lnewgroup);
+                if (rnewgroup.length != 0) group.push(rnewgroup);
+            }
             function findClosedParenthesisIndex(expr, openParenthesisIndex) { //Parenthesis can be nested so we don't want the FIRST closed, we want the closed which pairs with the open
                 let index = openParenthesisIndex+1;
                 let count = 1;
@@ -525,158 +577,158 @@
         function filterUsers(spotifyidarray, data) {
             return data.filter(item => spotifyidarray.includes(item.spotifyid));
         }
-        function filterTrackNamePt1(data) {
-            let trackname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
-                    trackname = filterroot.children[1].children[0].children[1].value;
-                    break;
-                }
-            }
-            return trackname != "" ? filterTrackNamePt2(trackname, data) : data;
-        }
-        function filterTrackNamePt2(expression, data) {
-            let rootgroup = [];
-            EXPRINTERPRETER_handleExpression(expression, rootgroup);
-            // console.log("rootgroup:");
-            // console.log(rootgroup);
-            //Recurse through children, discovering if they are true or false
-            function evaluateIfGroupIsTrue(groupOrString, item) {
-                if (groupOrString.length == 0)
-                    return true;
-                let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
-                if (isArrayOfConditions) {
-                    return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
-                }
-                let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
-                if (isFinalStringArray) {
-                    return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
-                }
-                //Now we know it's a single string to actually check
-                let word = groupOrString.toLowerCase();
-                return trackhashid_to_name_map[item.trackhashid].toLowerCase().includes(word);
-            }
-            return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
-        }
-        function filterArtistNamePt1(data) {
-            let artistname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
-                    artistname = filterroot.children[1].children[0].children[1].value;
-                    break;
-                }
-            }
-            return artistname != "" ? filterArtistNamePt2(artistname, data) : data;
-        }
-        function filterArtistNamePt2(expression, data) {
-            let rootgroup = [];
-            EXPRINTERPRETER_handleExpression(expression, rootgroup);
-            //Recurse through children, discovering if they are true or false
-            function evaluateIfGroupIsTrue(groupOrString, item) {
-                if (groupOrString.length == 0)
-                    return true;
-                let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
-                if (isArrayOfConditions) {
-                    return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
-                }
-                let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
-                if (isFinalStringArray) {
-                    return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
-                }
-                //Now we know it's a single string to actually check
-                let word = groupOrString;
-                let artistids = item.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
-                let anything_found_flag = false;
-                for (let artistid of artistids) {
-                    let artistname = artistspotifyid_to_name_map[artistid].toLowerCase();
-                    if (artistname.includes(word.toLowerCase())) {
-                        anything_found_flag = true;
+        function filterStage2(data) {
+            function filterTrackNamePt1(data) {
+                let trackname = "";
+                for (let filterroot of mainfiltersinner.children) {
+                    if (filterroot.dataset.desc == "trackname" && filterroot.dataset.selected == "1") {
+                        trackname = filterroot.children[1].children[0].children[1].value;
                         break;
                     }
                 }
-                return anything_found_flag;
+                return trackname != "" ? filterTrackNamePt2(trackname, data) : data;
             }
-            return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
-        }
-        function filterAlbumNamePt1(data) {
-            let albumname = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
-                    albumname = filterroot.children[1].children[0].children[1].value;
-                    break;
+            function filterTrackNamePt2(expression, data) {
+                let rootgroup = [];
+                EXPRINTERPRETER_handleExpression(expression, rootgroup);
+                // console.log("rootgroup:");
+                // console.log(rootgroup);
+                //Recurse through children, discovering if they are true or false
+                function evaluateIfGroupIsTrue(groupOrString, item) {
+                    if (groupOrString.length == 0)
+                        return true;
+                    let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
+                    if (isArrayOfConditions) {
+                        return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
+                    }
+                    let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
+                    if (isFinalStringArray) {
+                        return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
+                    }
+                    //Now we know it's a single string to actually check
+                    let word = groupOrString.toLowerCase();
+                    return trackhashid_to_name_map[item.trackhashid].toLowerCase().includes(word);
                 }
+                return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
             }
-            return albumname != "" ? filterAlbumNamePt2(albumname, data) : data;
-        }
-        function filterAlbumNamePt2(expression, data) {
-            let rootgroup = [];
-            EXPRINTERPRETER_handleExpression(expression, rootgroup);
-            // console.log("rootgroup:");
-            // console.log(rootgroup);
-            //Recurse through children, discovering if they are true or false
-            function evaluateIfGroupIsTrue(groupOrString, item) {
-                if (groupOrString.length == 0)
-                    return true;
-                let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
-                if (isArrayOfConditions) {
-                    return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
+            function filterArtistNamePt1(data) {
+                let artistname = "";
+                for (let filterroot of mainfiltersinner.children) {
+                    if (filterroot.dataset.desc == "artistname" && filterroot.dataset.selected == "1") {
+                        artistname = filterroot.children[1].children[0].children[1].value;
+                        break;
+                    }
                 }
-                let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
-                if (isFinalStringArray) {
-                    return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
-                }
-                //Now we know it's a single string to actually check
-                let word = groupOrString.toLowerCase();
-                return item.albumspotifyid != "" ? albumspotifyid_to_name_map[item.albumspotifyid].toLowerCase().includes(word) : false;
+                return artistname != "" ? filterArtistNamePt2(artistname, data) : data;
             }
-            return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
-        }
-        function filterListenDatePt1(data) {
-            let startlistendate = "";
-            let endlistendate = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "listendate" && filterroot.dataset.selected == "1") {
-                    startlistendate = filterroot.children[1].children[0].children[1].value;
-                    endlistendate = filterroot.children[1].children[1].children[1].value;
-                    break;
+            function filterArtistNamePt2(expression, data) {
+                let rootgroup = [];
+                EXPRINTERPRETER_handleExpression(expression, rootgroup);
+                //Recurse through children, discovering if they are true or false
+                function evaluateIfGroupIsTrue(groupOrString, item) {
+                    if (groupOrString.length == 0)
+                        return true;
+                    let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
+                    if (isArrayOfConditions) {
+                        return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
+                    }
+                    let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
+                    if (isFinalStringArray) {
+                        return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
+                    }
+                    //Now we know it's a single string to actually check
+                    let word = groupOrString;
+                    let artistids = item.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
+                    let anything_found_flag = false;
+                    for (let artistid of artistids) {
+                        let artistname = artistspotifyid_to_name_map[artistid].toLowerCase();
+                        if (artistname.includes(word.toLowerCase())) {
+                            anything_found_flag = true;
+                            break;
+                        }
+                    }
+                    return anything_found_flag;
                 }
+                return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
             }
-            startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01'); //We MUST add the time or JS assumes UTC
-            endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31'); //We MUST add the time or JS assumes UTC
-            return filterListenDatePt2(startlistendate, endlistendate, data);
-        }
-        function filterListenDatePt2(startlistendate, endlistendate, data) {
-            if (startlistendate == new Date('0001-01-01') && endlistendate == new Date('9999-12-31'))
-                return data;
-            return data.filter(item => {
-                let itemdate = new Date(item.timestamp);
-                return itemdate.getTime() >= startlistendate.getTime() && itemdate.getTime() <= endlistendate.getTime();
-            });
-        }
-        function filterListenTimePt1(data) {
-            let startlistentime = "";
-            let endlistentime = "";
-            for (let filterroot of mainfiltersinner.children) {
-                if (filterroot.dataset.desc == "listentime" && filterroot.dataset.selected == "1") {
-                    startlistentime = filterroot.children[1].children[0].children[1].value;
-                    endlistentime = filterroot.children[1].children[1].children[1].value;
-                    break;
+            function filterAlbumNamePt1(data) {
+                let albumname = "";
+                for (let filterroot of mainfiltersinner.children) {
+                    if (filterroot.dataset.desc == "albumname" && filterroot.dataset.selected == "1") {
+                        albumname = filterroot.children[1].children[0].children[1].value;
+                        break;
+                    }
                 }
+                return albumname != "" ? filterAlbumNamePt2(albumname, data) : data;
             }
-            startlistentime = startlistentime != "" ? startlistentime : "00:00:00";
-            endlistentime = endlistentime != "" ? endlistentime : "23:59:59";
-            return filterListenTimePt2(startlistentime, endlistentime, data);
-        }
-        function filterListenTimePt2(startlistentime, endlistentime, data) {
-            if (startlistentime == "00:00:00" && endlistentime == "23:59:59")
-                return data;
-            return data.filter(item => {
-                let itemdate = new Date(item.timestamp);
-                let itemtime = itemdate.toTimeString().split(" ")[0];
-                return itemtime >= startlistentime && itemtime <= endlistentime;
-            });
-        }
-        function filterStage2(data) {
+            function filterAlbumNamePt2(expression, data) {
+                let rootgroup = [];
+                EXPRINTERPRETER_handleExpression(expression, rootgroup);
+                // console.log("rootgroup:");
+                // console.log(rootgroup);
+                //Recurse through children, discovering if they are true or false
+                function evaluateIfGroupIsTrue(groupOrString, item) {
+                    if (groupOrString.length == 0)
+                        return true;
+                    let isArrayOfConditions = Array.isArray(groupOrString) && typeof groupOrString[0] !== 'string';
+                    if (isArrayOfConditions) {
+                        return groupOrString.some(i => evaluateIfGroupIsTrue(i,item));
+                    }
+                    let isFinalStringArray = Array.isArray(groupOrString) && typeof groupOrString[0] === 'string';
+                    if (isFinalStringArray) {
+                        return groupOrString.every(i => evaluateIfGroupIsTrue(i,item));
+                    }
+                    //Now we know it's a single string to actually check
+                    let word = groupOrString.toLowerCase();
+                    return item.albumspotifyid != "" ? albumspotifyid_to_name_map[item.albumspotifyid].toLowerCase().includes(word) : false;
+                }
+                return data.filter(item => evaluateIfGroupIsTrue(rootgroup, item));
+            }
+            function filterListenDatePt1(data) {
+                let startlistendate = "";
+                let endlistendate = "";
+                for (let filterroot of mainfiltersinner.children) {
+                    if (filterroot.dataset.desc == "listendate" && filterroot.dataset.selected == "1") {
+                        startlistendate = filterroot.children[1].children[0].children[1].value;
+                        endlistendate = filterroot.children[1].children[1].children[1].value;
+                        break;
+                    }
+                }
+                startlistendate = startlistendate != "" ? new Date(startlistendate + "T00:00:00") : new Date('0001-01-01'); //We MUST add the time or JS assumes UTC
+                endlistendate = endlistendate != "" ? new Date(endlistendate + "T23:59:59") : new Date('9999-12-31'); //We MUST add the time or JS assumes UTC
+                return filterListenDatePt2(startlistendate, endlistendate, data);
+            }
+            function filterListenDatePt2(startlistendate, endlistendate, data) {
+                if (startlistendate == new Date('0001-01-01') && endlistendate == new Date('9999-12-31'))
+                    return data;
+                return data.filter(item => {
+                    let itemdate = new Date(item.timestamp);
+                    return itemdate.getTime() >= startlistendate.getTime() && itemdate.getTime() <= endlistendate.getTime();
+                });
+            }
+            function filterListenTimePt1(data) {
+                let startlistentime = "";
+                let endlistentime = "";
+                for (let filterroot of mainfiltersinner.children) {
+                    if (filterroot.dataset.desc == "listentime" && filterroot.dataset.selected == "1") {
+                        startlistentime = filterroot.children[1].children[0].children[1].value;
+                        endlistentime = filterroot.children[1].children[1].children[1].value;
+                        break;
+                    }
+                }
+                startlistentime = startlistentime != "" ? startlistentime : "00:00:00";
+                endlistentime = endlistentime != "" ? endlistentime : "23:59:59";
+                return filterListenTimePt2(startlistentime, endlistentime, data);
+            }
+            function filterListenTimePt2(startlistentime, endlistentime, data) {
+                if (startlistentime == "00:00:00" && endlistentime == "23:59:59")
+                    return data;
+                return data.filter(item => {
+                    let itemdate = new Date(item.timestamp);
+                    let itemtime = itemdate.toTimeString().split(" ")[0];
+                    return itemtime >= startlistentime && itemtime <= endlistentime;
+                });
+            }
             data = filterTrackNamePt1(data);
             data = filterArtistNamePt1(data);
             data = filterAlbumNamePt1(data);
@@ -766,10 +818,11 @@
                         const formattedMinutes = minutes.toString().padStart(2, '0');
                         // Format the date to "hour:minute AM/PM month-day-year"
                         const formattedDate = `${hours}:${formattedMinutes} ${period} ${date.getMonth() + 1}-${date.getDate()}-${date.getFullYear()}`;
+                        lho.imagehtmltype = "album";
                         if (albumspotifyid_to_name_map[lho.albumspotifyid])
-                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
                         else
-                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%`;
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%`;
                         lho.secondaryhtmlstring = special_space + formattedDate;
                     }
                 } else if (SORT_sortbyid == "trackplaycount") {
@@ -782,10 +835,11 @@
                         return aval > bval ? -1*SORT_incordecmultiplier : (aval < bval ? 1*SORT_incordecmultiplier : 0);
                     });
                     for (let lho of filtered_data) {
+                        lho.imagehtmltype = "album";
                         if (albumspotifyid_to_name_map[lho.albumspotifyid])
-                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
                         else
-                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%`;
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%`;
                         lho.secondaryhtmlstring = special_space + trackplaycountinfomap[lho.trackhashid] + " Play(s)";
                     }
                 } else if (SORT_sortbyid == "artistplaycount") {
@@ -802,7 +856,8 @@
                         let artistsarray = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
                         // let artists = lho.artists;
                         lho.artists = `["${artistsarray[0]}"]`;
-                        lho.primaryhtmlstring = `%counter%. %artiststring%`;
+                        lho.imagehtmltype = "artist";
+                        lho.primaryhtmlstring = `%artiststring%`;
                         lho.secondaryhtmlstring = special_space + artistplaycountinfomap[artistsarray[0]] + " Plays";
                         for (let i = 0;i < artistsarray.length;i++) {
                             if (i == 0)
@@ -851,8 +906,94 @@
                             artiststring += artistspotifyid_to_name_map[artistid] + " & ";
                         }
                         artiststring = artiststring.substring(0, artiststring.length-3);
-                        lho.primaryhtmlstring = `%counter%. %albumname%${special_divider}${artiststring}`;
+                        lho.imagehtmltype = "album";
+                        lho.primaryhtmlstring = `%albumname%${special_divider}${artiststring}`;
                         lho.secondaryhtmlstring = special_space + albumplaycountinfomap[lho.albumspotifyid] + " Play(s)";
+                    }
+                } else if (SORT_sortbyid == "trackplayduration") {
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
+                    filtered_data = removeDuplicateTrackHashId(filtered_data);
+                    filtered_data.sort((a,b) => {
+                        let aval = trackplaydurationinfomap[a.trackhashid];
+                        let bval = trackplaydurationinfomap[b.trackhashid];
+                        return aval > bval ? -1*SORT_incordecmultiplier : (aval < bval ? 1*SORT_incordecmultiplier : 0);
+                    });
+                    for (let lho of filtered_data) {
+                        lho.imagehtmltype = "album";
+                        if (albumspotifyid_to_name_map[lho.albumspotifyid])
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
+                        else
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%`;
+                        lho.secondaryhtmlstring = special_space + duration_to_human_string(trackplaydurationinfomap[lho.trackhashid]);
+                    }
+                } else if (SORT_sortbyid == "artistplayduration") {
+                    //This one is very special. Because there can be multiple artists per song, and people would want to know both independently
+                    // in this sorted list, we need to duplicate/split the data per artist. THEN we will sort.
+                    //
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
+                    //First, duplicate/split
+                    for (let i = 0;i < filtered_data.length;i++) {
+                        let lho = filtered_data[i];
+                        if (lho.artists.length == 1)
+                            continue;
+                        let artistsarray = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
+                        // let artists = lho.artists;
+                        lho.artists = `["${artistsarray[0]}"]`;
+                        lho.imagehtmltype = "artist";
+                        lho.primaryhtmlstring = `%artiststring%`;
+                        lho.secondaryhtmlstring = special_space + duration_to_human_string(artistplaydurationinfomap[artistsarray[0]]);
+                        for (let i = 0;i < artistsarray.length;i++) {
+                            if (i == 0)
+                                continue;
+                            let artist = artistsarray[i];
+                            let clone = Object.assign({}, lho);
+                            clone.artists = `["${artist}"]`;
+                            clone.secondaryhtmlstring = special_space + duration_to_human_string(artistplaydurationinfomap[artist]);
+                            filtered_data.push(clone);
+                        }
+                    }
+                    //Third, remove listenhistoryobjects with duplicate artists
+                    filtered_data = removeDuplicateArtistSpotifyId(filtered_data);
+                    //Fourth, now we sort
+                    filtered_data.sort((a,b) => {
+                        let aartist = a.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",");
+                        let bartist = b.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",");
+                        let aval = artistplaydurationinfomap[aartist];
+                        let bval = artistplaydurationinfomap[bartist];
+                        return aval > bval ? -1*SORT_incordecmultiplier : (aval < bval ? 1*SORT_incordecmultiplier : 0)
+                    });
+                } else if (SORT_sortbyid == "albumplayduration") {
+                    //Remove all entries without albums
+                    filtered_data = filtered_data.filter((item) => item.albumspotifyid in albumspotifyid_to_name_map);
+                    //Load playcount
+                    filtered_data = filterStage2(filtered_data);
+                    load_playcount_info(filtered_data);
+                    //Remove dupes
+                    filtered_data = removeDuplicateAlbumSpotifyId(filtered_data);
+                    //
+                    filtered_data.sort((a,b) => {
+                        let aval = albumplaydurationinfomap[a.albumspotifyid];
+                        let bval = albumplaydurationinfomap[b.albumspotifyid];
+                        return aval > bval ? -1*SORT_incordecmultiplier : (aval < bval ? 1*SORT_incordecmultiplier : 0);
+                    });
+                    for (let lho of filtered_data) {
+                        let artiststring = "";
+                        let artistids = "";
+                        for (let album of album_info) {
+                            if (album.spotifyid == lho.albumspotifyid) {
+                                artistids = album.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
+                                break;
+                            }
+                        }
+                        for (let artistid of artistids) {
+                            artiststring += artistspotifyid_to_name_map[artistid] + " & ";
+                        }
+                        artiststring = artiststring.substring(0, artiststring.length-3);
+                        lho.imagehtmltype = "album";
+                        lho.primaryhtmlstring = `%albumname%${special_divider}${artiststring}`;
+                        lho.secondaryhtmlstring = special_space + duration_to_human_string(albumplaydurationinfomap[lho.albumspotifyid]);
                     }
                 } else if (SORT_sortbyid == "trackname") {
                     filtered_data = filterStage2(filtered_data);
@@ -864,10 +1005,11 @@
                         return aval > bval ? 1*SORT_incordecmultiplier : (aval < bval ? -1*SORT_incordecmultiplier : 0)
                     });
                     for (let lho of filtered_data) {
+                        lho.imagehtmltype = "album";
                         if (albumspotifyid_to_name_map[lho.albumspotifyid])
-                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%${special_divider}%albumname%`;
                         else
-                            lho.primaryhtmlstring = `%counter%. %trackname%${special_divider}%artiststring%`;
+                            lho.primaryhtmlstring = `%trackname%${special_divider}%artiststring%`;
                         lho.secondaryhtmlstring = special_space + trackplaycountinfomap[lho.trackhashid] + " Play(s)";
                     }
                 } else if (SORT_sortbyid == "artistname") {
@@ -884,7 +1026,8 @@
                         let artistsarray = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
                         // let artists = lho.artists;
                         lho.artists = `["${artistsarray[0]}"]`;
-                        lho.primaryhtmlstring = `%counter%. %artiststring%`;
+                        lho.imagehtmltype = "artist";
+                        lho.primaryhtmlstring = `%artiststring%`;
                         lho.secondaryhtmlstring = special_space + artistplaycountinfomap[artistsarray[0]] + " Plays";
                         for (let i = 0;i < artistsarray.length;i++) {
                             if (i == 0)
@@ -937,7 +1080,8 @@
                             artiststring += artistspotifyid_to_name_map[artistid] + " & ";
                         }
                         artiststring = artiststring.substring(0, artiststring.length-3);
-                        lho.primaryhtmlstring = `%counter%. %albumname%${special_divider}${artiststring}`;
+                        lho.imagehtmltype = "album";
+                        lho.primaryhtmlstring = `%albumname%${special_divider}${artiststring}`;
                         lho.secondaryhtmlstring = special_space + albumplaycountinfomap[lho.albumspotifyid] + " Play(s)";
                     }
                 }
@@ -968,21 +1112,76 @@
                 let albumname = albumspotifyid_to_name_map[lho.albumspotifyid];
                 let trackplaycount = trackplaycountinfomap[lho.trackhashid];
                 //
-                let root = document.createElement("p");
-                root.style.marginBottom = "0px";
-                // let str = counter + ". " + trackname + "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;";
-                // for (let artistname of artistnames)
-                //     str += artistname + " & ";
-                // str = str.substring(0, str.length-3);
-                // if (albumname)
-                //     str += "&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;" + albumname;
-                root.innerHTML = handle_placeholders(lho.primaryhtmlstring, lho, counter);
+                // if (true) {
+                //     let image = document.createElement("img");
+                //     let album;
+                //     for (let a of album_info) {
+                //         if (lho.albumspotifyid == a.spotifyid) {
+                //             album = a;
+                //             break;
+                //         }
+                //     }
+                //     let images = album ? JSON.parse(album.images) : [];
+                //     image.src = album ? images[images.length-1].url : "/static/img/noalbum_64.png"; // Get the smallest size image
+                //     attachpointelem.append(image);
+                // }
+                let root = document.createElement("div");
+                root.style.display = "flex";
+                root.style.position = "relative";
+                root.style.backgroundColor = "black";
+                root.style.padding = "10px";
+                root.style.marginBottom = "10px";
+                root.style.alignItems = "center";
                 attachpointelem.append(root);
-                if (lho.secondaryhtmlstring != "") { //If the sorting leads to a special value being attached on the second line of each song
-                    let specialvalue = document.createElement("span");
-                    specialvalue.innerHTML = handle_placeholders(lho.secondaryhtmlstring, lho, counter);
-                    attachpointelem.append(specialvalue);
+                let c = document.createElement("span");
+                // c.style.marginRight = "10px";
+                c.style.width = "40px";
+                c.innerText = counter + ".";
+                root.append(c);
+                if (true) {
+                    if (lho.imagehtmltype != "none" && lho.imagehtmltype != "artist") {
+                        let image = document.createElement("img");
+                        if (lho.imagehtmltype == "album") {
+                            let album;
+                            for (let a of album_info) {
+                                if (lho.albumspotifyid == a.spotifyid) {
+                                    album = a;
+                                    break;
+                                }
+                            }
+                            let images = album ? JSON.parse(album.images) : [];
+                            image.loading = "lazy";
+                            image.src = album ? images[images.length-1].url : "/static/img/noalbum_64.png"; // Get the smallest size image
+                        }
+                        image.style.minWidth = "64px";
+                        image.style.minHeight = "64px";
+                        image.style.height = "64px";
+                        image.style.width = "auto";
+                        image.style.marginRight = "10px";
+                        root.append(image);
+                    }
                 }
+                let div2 = document.createElement("div");
+                root.append(div2);
+                let primary = document.createElement("p");
+                primary.style.margin = "0px";
+                primary.innerHTML = handle_placeholders(lho.primaryhtmlstring, lho, counter);
+                div2.append(primary);
+                if (lho.secondaryhtmlstring != "") { //If the sorting leads to a special value being attached on the second line of each song
+                    let secondary = document.createElement("p");
+                    secondary.style.margin = "0px";
+                    secondary.innerHTML = handle_placeholders(lho.secondaryhtmlstring, lho, counter);
+                    div2.append(secondary);
+                }
+                // let primary = document.createElement("p");
+                // primary.style.marginBottom = "0px";
+                // primary.innerHTML = handle_placeholders(lho.primaryhtmlstring, lho, counter);
+                // attachpointelem.append(primary);
+                // if (lho.secondaryhtmlstring != "") { //If the sorting leads to a special value being attached on the second line of each song
+                //     let secondary = document.createElement("span");
+                //     secondary.innerHTML = handle_placeholders(lho.secondaryhtmlstring, lho, counter);
+                //     attachpointelem.append(secondary);
+                // }
             }
             let fillerdiv = document.createElement("div");
             fillerdiv.style.height = "20px";

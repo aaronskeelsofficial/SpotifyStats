@@ -11,18 +11,15 @@ use uuid::Uuid;
 
 async fn index(jar: CookieJar) -> impl axum::response::IntoResponse {
     println!("Received request to /");
-    //Authenticate
-    if jar.get("token").is_some() {
-        let logintoken = jar.get("token").unwrap().value();
-        if crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
-            return axum::response::Response::builder()
-                .status(StatusCode::FOUND)
-                .header("Location", "/dashboard")
-                .body(body::Body::empty())
-                .unwrap();
-        }
+    let logintokenoption = jar.get("token");
+    // If user is already logged in, redirect
+    if logintokenoption.is_some() && crate::modules::encryption::logintoken::validate_and_ping_token(&logintokenoption.unwrap().value().to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/dashboard")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
     }
-    //
     let path = Path::new("assets/index.html");
     let mut file = File::open(path).await.unwrap();
     let mut contents = Vec::new();
@@ -168,6 +165,41 @@ async fn testapi() -> impl axum::response::IntoResponse {
         .send().await.unwrap().text().await.unwrap();
     println!("{}", res);
     "response"
+}
+
+async fn testtrackfeatures(jar: CookieJar) -> impl axum::response::IntoResponse {
+    println!("Received request to /testtrackfeatures");
+    //Authenticate
+    if jar.get("token").is_none() {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    let logintoken = jar.get("token").unwrap().value();
+    if !crate::modules::encryption::logintoken::validate_and_ping_token(&logintoken.to_string()) {
+        return axum::response::Response::builder()
+            .status(StatusCode::FOUND) // 302 Found
+            .header("Location", "/login")  // Redirect to the root path
+            .body(body::Body::empty())
+            .unwrap();
+    }
+    //
+    let uuid = crate::modules::database::logintoken_info::get_uuid_from_token(&logintoken.to_string()).unwrap();
+    let displaynameauthtoken_pairs = crate::modules::database::oauth_info::get_displaynameauthtoken_pairs_from_uuid(&uuid);
+    let authtoken: &String = displaynameauthtoken_pairs.get("adbaaron").unwrap();
+    let auth_string = "Bearer ".to_string() + authtoken;
+    let client = Client::new();
+    let res: String = client
+        .get("https://api.spotify.com/v1/audio-features/2TfSHkHiFO4gRztVIkggkE")
+        .header("Authorization", auth_string)
+        .send().await.unwrap().text().await.unwrap();
+    println!("{}", res);
+    return axum::response::Response::builder()
+            .status(StatusCode::OK)
+            .body(body::Body::empty())
+            .unwrap();
 }
 
 async fn datapullalbum(jar: CookieJar) -> impl axum::response::IntoResponse {
@@ -355,7 +387,9 @@ async fn signupsubmit(Json(payload): Json<Value>) -> impl axum::response::IntoRe
 
 async fn login(jar: CookieJar) -> impl axum::response::IntoResponse {
     println!("Received request to /login");
-    if jar.get("token").is_some() {
+    let logintokenoption = jar.get("token");
+    // If user is already logged in, redirect
+    if logintokenoption.is_some() && crate::modules::encryption::logintoken::validate_and_ping_token(&logintokenoption.unwrap().value().to_string()) {
         return axum::response::Response::builder()
             .status(StatusCode::FOUND) // 302 Found
             .header("Location", "/dashboard")  // Redirect to the root path
@@ -535,6 +569,7 @@ pub fn main() {
                 .route("/test", get(test))
                 .route("/testscrape", get(testscrape))
                 .route("/testapi", get(testapi))
+                .route("/testtrackfeatures", get(testtrackfeatures))
                 .route("/datapullalbum", post(datapullalbum))
                 .route("/datapullartist", post(datapullartist))
                 .route("/datapulltrack", post(datapulltrack))
