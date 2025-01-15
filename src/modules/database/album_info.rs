@@ -28,6 +28,20 @@ pub fn first_init_if_necessary() {
 
 pub fn register_album(album: &Album) -> Result<()> {
     let conn_guard = ALBUMINFO_CONN.lock().unwrap();
+    // Insert some data into the table
+    let artists = crate::modules::database::artist_info::artist_vec_to_json(&album.artists);
+    let images = &album.get_images_json();
+    conn_guard.execute(
+        "INSERT OR IGNORE INTO album_info (spotifyid,name,artists,images,releasedate,releasedateprecision,totaltracks)
+        VALUES (?1,?2,?3,?4,?5,?6,?7)",
+        params![&album.id,&album.name,&artists,images,&album.release_date,&album.release_date_precision,&album.total_tracks],
+    )?;
+
+    Ok(())
+}
+
+pub fn _register_album_with_image_updates(album: &Album) -> Result<()> {
+    let conn_guard = ALBUMINFO_CONN.lock().unwrap();
     let artists = crate::modules::database::artist_info::artist_vec_to_json(&album.artists);
     let images = album.get_images_json();
     // conn_guard.execute(

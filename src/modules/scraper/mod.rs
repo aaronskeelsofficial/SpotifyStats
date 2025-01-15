@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Mutex};
+use std::{collections::{HashMap, HashSet}, sync::Mutex};
 
 use chrono::{DateTime, Duration, Local, Timelike, Utc};
 use lazy_static::lazy_static;
@@ -103,19 +103,19 @@ pub fn scrape(spotifyid: &String, displayname: &String, token: &String) {
         let form_data = [
             ("limit", 50),
         ];
-        let auth_string = "Bearer ".to_string() + &token;
-        let client = Client::new();
+        let temp_auth_string = "Bearer ".to_string() + &token.clone();
         //   Manually do a first ping, and then have a custom secondary rolling ping
         println!("Pinging https://api.spotify.com/v1/me/player/recently-played");
         let res: String = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let client = Client::new();
             client
                 .get("https://api.spotify.com/v1/me/player/recently-played")
-                .header("Authorization", &auth_string)
+                .header("Authorization", &temp_auth_string)
                 .query(&form_data)
                 .send().await.unwrap().text().await.unwrap()
         });
         std::fs::write(format!("output_{}.txt",spotifyid.get(0..5).unwrap()), &res).unwrap();
-        let recently_played_response: RecentlyPlayedResponse = serde_json::from_str(&res).unwrap();
+        let mut recently_played_response: RecentlyPlayedResponse = serde_json::from_str(&res).unwrap();
         //   Now do the custom rolling ping
         //   EDIT: Spotify only provides the last 50 songs. No need for a rolling ping.
         // let mut counter = 1;
@@ -134,16 +134,70 @@ pub fn scrape(spotifyid: &String, displayname: &String, token: &String) {
         //     recently_played_response.next = last_recently_played_response.next;
         //     counter += 1;
         // }
+        //  Get artist image info/updates
+        fn get_artist_images(artist_set: &HashSet<String>, token: &String) -> HashMap<String, String> {
+            #[derive(Deserialize)]
+            struct Artist {
+                id: String,
+                images: Vec<Image>,
+            }
+            #[derive(Deserialize,Serialize)]
+            struct Image {
+                url: String,
+                height: u32,
+                width: u32,
+            }
+            #[derive(Deserialize)]
+            struct Response {
+                artists: Vec<Artist>,
+            }
+            //
+            let temp_auth_string = "Bearer ".to_string() + token;
+            let res: String = tokio::runtime::Runtime::new().unwrap().block_on(async {
+                let comma_separated_string = artist_set.iter().cloned().collect::<Vec<String>>().join("%2C");
+                // let comma_separated_string = artist_set.iter().next().unwrap();
+                let url = "https://api.spotify.com/v1/artists?ids=".to_string() + &comma_separated_string;
+                // println!("url: {}", url);
+                let client = Client::new();
+                client
+                    .get(url)
+                    .header("Authorization", &temp_auth_string)
+                    .send().await.unwrap().text().await.unwrap()
+            });
+            // println!("res: {}", res);
+            //
+            let response: Response = serde_json::from_str(&res).unwrap();
+            let mut map: HashMap<String, String> = HashMap::new(); // spotifyid -> images json string
+            for artist in response.artists {
+                let images_json = serde_json::to_string(&artist.images).unwrap();
+                // stop the json from having double quotes or else js cant parse it
+                map.insert(artist.id, images_json.to_string());  // Insert into the HashMap with id as the key
+            }
+            return map;
+        }
+        let mut artist_set: HashSet<String> = HashSet::new();
+        for pho in &recently_played_response.items {
+            for artist in &pho.track.artists {
+                artist_set.insert(artist.id.clone());
+            }
+        }
+        let map = get_artist_images(&artist_set, token);
+        for pho in &mut recently_played_response.items {
+            for artist in &mut pho.track.artists {
+                let str: String = map.get(&artist.id).unwrap().clone();
+                artist.images = Some(str);
+            }
+        }
         //  Add data to database
-        add_data_to_database(&spotifyid, &recently_played_response);
+        add_data_to_database(&spotifyid, &mut recently_played_response);
 }
 
-fn add_data_to_database(spotifyid: &String, rpr: &RecentlyPlayedResponse) {
+fn add_data_to_database(spotifyid: &String, rpr: &mut RecentlyPlayedResponse) {
     println!("Adding data to database");
-    for pho in &rpr.items {
+    for pho in &mut rpr.items {
         //Add artists
-        for artist in &pho.track.artists {
-            crate::modules::database::artist_info::register_artist(artist).unwrap();
+        for artist in &mut pho.track.artists {
+            crate::modules::database::artist_info::register_artist_with_image_updates(&artist).unwrap();
         }
         //Add album (note: even singles appear as albums so make sure more than 1 song)
         if &pho.track.album.total_tracks >= &2 {
@@ -262,9 +316,21 @@ pub struct Artist {
     pub external_urls: ExternalUrls,
     pub href: String,
     pub id: String,
+    pub images: Option<String>,
     pub name: String,
     pub r#type: String,
     pub uri: String,
+}
+impl Artist {
+    pub fn get_images_json(&self) -> String {
+        // println!("original: <{}>", &self.images.as_ref().unwrap());
+        return self.images.as_ref().unwrap().clone();
+        // let images_json = serde_json::to_string(&self.images.as_ref().unwrap()).unwrap();
+        // let images_json = images_json.strip_prefix('"').unwrap_or(images_json.as_str());
+        // let images_json = images_json.strip_suffix('"').unwrap_or(images_json);
+        // let images_json = images_json.to_string();
+        // return images_json;
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

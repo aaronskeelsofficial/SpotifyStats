@@ -48,6 +48,9 @@
             height: 50px;
             cursor: pointer;
         }
+        a {
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -67,12 +70,12 @@
                 <div id="mainmiddle" style="width:22%;height:100%;">
                     <div id="mainfilters" class="maincenter" style="width:100%;height:49.5%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
                         <p class="menuheader">Filters</p>
-                        <div id="mainfiltersinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;"></div>
+                        <div id="mainfiltersinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;padding-top:20px;"></div>
                     </div>
                     <div style="height:1%;"></div>
                     <div id="mainsort" class="maincenter" style="width:100%;height:49.5%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
                         <p class="menuheader">Sort</p>
-                        <div id="mainsortinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;overflow-y:auto;"></div>
+                        <div id="mainsortinner" style="width:calc(100% - 20px);height:100%;background-color:#1a1a1a;border-radius:20px;margin-bottom:10px;padding-top:20px;overflow-y:auto;"></div>
                     </div>
                 </div>
                 <div id="mainresults" class="maincenter" style="width:55%;height:100%;background-image:linear-gradient(120deg, #555555, #1a1a1a);border-radius:20px;position:relative;">
@@ -1089,16 +1092,36 @@
             //Create html results from filtered & sorted data
             let counter = 0;
             function handle_placeholders(string, lho, counter) {
-                let artiststring = "";
-                let artistids = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
-                for (let artistid of artistids)
-                    artiststring += artistspotifyid_to_name_map[artistid] + " & ";
-                artiststring = artiststring.substring(0, artiststring.length-3);
-                return string
-                    .replace("%counter%", counter)
-                    .replace("%trackname%", trackhashid_to_name_map[lho.trackhashid])
-                    .replace("%artiststring%", artiststring)
-                    .replace("%albumname%", albumspotifyid_to_name_map[lho.albumspotifyid]);
+                if (string.includes("%counter%")) {
+                    string = string.replaceAll("%counter%", counter);
+                }
+                if (string.includes("%trackname%")) {
+                    let trackspotifyid;
+                    for (let t of track_info) {
+                        if (t.hashid == lho.trackhashid) {
+                            trackspotifyid = t.spotifyid;
+                            break;
+                        }
+                    }
+                    string = string.replaceAll("%trackname%", `<a href="https://open.spotify.com/track/${trackspotifyid}">` + trackhashid_to_name_map[lho.trackhashid] + "</a>");
+                }
+                if (string.includes("%artiststring%")) {
+                    let artiststring = "";
+                    let artistids = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",");
+                    for (let artistid of artistids)
+                        artiststring += `<a href="https://open.spotify.com/artist/${artistid}">` + artistspotifyid_to_name_map[artistid] + "</a> & ";
+                    artiststring = artiststring.substring(0, artiststring.length-3);
+                    string = string.replaceAll("%artiststring%", artiststring);
+                }
+                if (string.includes("%albumname%")) {
+                    string = string.replaceAll("%albumname%", `<a href="https://open.spotify.com/album/${lho.albumspotifyid}">` + albumspotifyid_to_name_map[lho.albumspotifyid] + "</a>");
+                }
+                return string;
+                // return string
+                //     .replace("%counter%", counter)
+                //     .replace("%trackname%", trackhashid_to_name_map[lho.trackhashid])
+                //     .replace("%artiststring%", artiststring)
+                //     .replace("%albumname%", albumspotifyid_to_name_map[lho.albumspotifyid]);
             }
             for (let lho of filtered_data) {
                 counter++;
@@ -1132,14 +1155,16 @@
                 root.style.padding = "10px";
                 root.style.marginBottom = "10px";
                 root.style.alignItems = "center";
+                root.style.borderRadius = "20px";
                 attachpointelem.append(root);
                 let c = document.createElement("span");
                 // c.style.marginRight = "10px";
                 c.style.width = "40px";
                 c.innerText = counter + ".";
                 root.append(c);
+                // Image Stuff
                 if (true) {
-                    if (lho.imagehtmltype != "none" && lho.imagehtmltype != "artist") {
+                    if (lho.imagehtmltype != "none") {
                         let image = document.createElement("img");
                         if (lho.imagehtmltype == "album") {
                             let album;
@@ -1151,7 +1176,36 @@
                             }
                             let images = album ? JSON.parse(album.images) : [];
                             image.loading = "lazy";
-                            image.src = album ? images[images.length-1].url : "/static/img/noalbum_64.png"; // Get the smallest size image
+                            let src = album ? images[images.length-1].url : ""; // Get the smallest size image
+                            if (src == "") { //If no album image is found then try artist image
+                                let artistspotifyid = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",")[0];
+                                let artist;
+                                for (let a of artist_info) {
+                                    if (a.spotifyid == artistspotifyid) {
+                                        artist = a;
+                                        break;
+                                    }
+                                }
+                                let imagesarray = JSON.parse(artist.images);
+                                if (imagesarray) //This is in case the database is corrupt and missing data
+                                    src = imagesarray[imagesarray.length-1].url;
+                            }
+                            src = src == "" ? "/static/img/noalbum_64.png" : src;
+                            image.src = src;
+                        } else if (lho.imagehtmltype == "artist") {
+                            let artistspotifyid = lho.artists.replaceAll("[\"","").replaceAll("\"]","").replaceAll("\",\"",",").split(",")[0];
+                            let artist;
+                            for (let a of artist_info) {
+                                if (a.spotifyid == artistspotifyid) {
+                                    artist = a;
+                                    break;
+                                }
+                            }
+                            let imagesarray = JSON.parse(artist.images);
+                            if (imagesarray) //This is in case the database is corrupt and missing data
+                                src = imagesarray[imagesarray.length-1].url;
+                            src = src == "" ? "/static/img/noalbum_64.png" : src;
+                            image.src = src;
                         }
                         image.style.minWidth = "64px";
                         image.style.minHeight = "64px";
@@ -1165,7 +1219,9 @@
                 root.append(div2);
                 let primary = document.createElement("p");
                 primary.style.margin = "0px";
+                console.log("p1: " + lho.primaryhtmlstring);
                 primary.innerHTML = handle_placeholders(lho.primaryhtmlstring, lho, counter);
+                console.log("p2: " + handle_placeholders(lho.primaryhtmlstring, lho, counter));
                 div2.append(primary);
                 if (lho.secondaryhtmlstring != "") { //If the sorting leads to a special value being attached on the second line of each song
                     let secondary = document.createElement("p");
